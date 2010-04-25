@@ -1,0 +1,25 @@
+To construct svn-st-alloc.log, I modified apr_pools.c to log
+appropriate actions. Each action produced an entry with four fields:
+action-name, pool-ptr, parent-ptr, size. There were four possible
+actions, with the following field usage:
+
+  alloc, pool, NULL, size
+  create, resulting-pool, parent, 0
+  clear, pool, NULL, 0
+  destory, pool, NULL, 0
+
+The log file was produced by running "svn status" from the /trunk
+directory of a working copy of the Subversion source. This is a
+good-sized working copy, and the Subversion application makes
+extensive use of pools.
+
+The intent is to use this log as a reference for (one) "typical"
+application's use of memory, and then to guide our own design for a
+memory allocator.
+
+As a quick reference, here are the operation counts:
+
+alloc: 412109
+create: 22268
+clear: 22410
+destroy: 22268

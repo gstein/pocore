@@ -1,0 +1,4 @@
+See svn-st-alloc.README for general information.
+
+This log file was produced by running:
+  svn co http://serf.googlecode.com/svn/trunk/ serftest
