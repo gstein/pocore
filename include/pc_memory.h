@@ -24,16 +24,20 @@
 #ifndef PC_MEMORY_H
 #define PC_MEMORY_H
 
+#include "pc_types.h"
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 
-typedef struct pc_pool_s pc_pool_t;
+/* Declare the basic types. Note that pc_pool_t is in pc_types.h  */
+
 typedef struct pc_post_s pc_post_t;
 
 
+/*
 TEMP_POOL = pc_create_temp(pool);
 
 POST = pc_create_post(pool);
@@ -44,8 +48,9 @@ pc_destroy(pool)
 
 
 pc_clear_temps(pool)
-pc_has_temp(pool)  /* to verify children cleared temps  */
+pc_has_temp(pool)  // to verify children cleared temps
 
+*/
 
 pc_pool_t *pc_pool_init(pc_context_t *ctx);
 
@@ -87,7 +92,7 @@ char *pc_sprintf(pc_pool_t *pool, const char *fmt, ...)
 /* ### shared memory functions  */
 /* ### should pc_mmap.h go in here, too?  */
 
-
+#if 0
 func(pool)
 {
     scratch = pc_create_temp(pool);
@@ -108,6 +113,7 @@ func(pool)
 
     pc_destroy(scratch);
 }
+#endif
 
 
 #ifdef __cplusplus

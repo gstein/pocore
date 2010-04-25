@@ -24,6 +24,8 @@
 #ifndef POCORE_H
 #define POCORE_H
 
+#include "pc_types.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,7 +72,7 @@ struct pc_context_s {
     struct pc_block_s *nonstd_blocks;
 
     /* ### chained hashes to prevent realloc? subpool for this?  */
-    hash *ptr_to_track;
+    pc_hash_t *ptr_to_track;
     union pc_trackreg_u *free_tracks;
     struct pc_pool_s *track_pool;
 };
@@ -90,7 +92,7 @@ struct pc_pool_s {
     /* Inlined. Every pool has a set of owners (tho no dependents). Using
        a trackreg structure allows the owners to deregister/cleanup and
        to update the pool's tracking, like any other dependent.  */
-    struct pc_trackreg_s track;
+    union pc_trackreg_u track;
 };
 
 

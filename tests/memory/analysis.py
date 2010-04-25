@@ -47,6 +47,7 @@ def main(filename):
     ]
 
   count_hist = [
+    [5, 0],
     [10, 0],
     [100, 0],
     [1000, 0],

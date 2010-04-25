@@ -1,5 +1,5 @@
 /*
-  pc_misc.h :  miscellaneous portability support
+  pc_misc.c :  miscellaneous portability support
 
   ====================================================================
   Licensed to the Apache Software Foundation (ASF) under one
@@ -21,30 +21,23 @@
   ====================================================================
 */
 
-#ifndef PC_MISC_H
-#define PC_MISC_H
+#include <string.h>
 
-/* ### is this always the correct header?  */
-#include <stdlib.h>  /* for size_t  */
+#include "pc_types.h"
+#include "pc_misc.h"
 
+#include "pocore.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif /* __cplusplus */
-
-typedef struct pc_context_s pc_context_t;
-
-#define PC_DEFAULT_STDSIZE 0
 
 pc_context_t *pc_context_create(size_t stdsize,
-                                int (*oom_handler)(size_t amt));
+                                int (*oom_handler)(size_t amt))
+{
+    pc_context_t *ctx = malloc(sizeof(*ctx));
 
+    memset(ctx, 0, sizeof(*ctx));
 
-/* ### uuid  */
+    ctx->oom_handler = oom_handler;
+    ctx->stdsize = stdsize;
 
-
-#ifdef __cplusplus
+    return ctx;
 }
-#endif /* __cplusplus */
-
-#endif /* PC_MISC_H */
