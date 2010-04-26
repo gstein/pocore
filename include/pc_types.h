@@ -67,6 +67,7 @@ typedef struct pc_pool_s pc_pool_t;
 
 
 /* PoCore's hash type and supporting functions.  */
+/* ### should these move into their own header?  */
 
 typedef struct pc_hash_s pc_hash_t;
 typedef struct pc_hiter_s pc_hiter_t;
@@ -91,9 +92,39 @@ pc_hiter_t *pc_hash_first(const pc_hash_t *hash, pc_pool_t *pool);
 
 void pc_hiter_next(pc_hiter_t *hiter);
 
-void *pc_hiter_key(const pc_hiter_t *hiter);
-size_t *pc_hiter_klen(const pc_hiter_t *hiter);
+const void *pc_hiter_key(const pc_hiter_t *hiter);
+size_t pc_hiter_klen(const pc_hiter_t *hiter);
 void *pc_hiter_value(const pc_hiter_t *hiter);
+
+
+/* PoCore's array type and supporting functions.  */
+
+typedef struct {
+    void *elems;
+
+    size_t elem_size;
+
+    int count;
+
+    int alloc;
+
+    pc_pool_t *pool;
+
+} pc_array_t;
+
+#define PC_ARRAY_IDX(ary, i, type) (((type *)(ary)->elems)[i])
+
+#define PC_ARRAY_PUSH(ary, type) (*((type *)pc_array_add(ary)))
+
+pc_array_t *pc_array_create(int alloc, size_t elem_size, pc_pool_t *pool);
+
+pc_array_t *pc_array_copy(const pc_array_t *ary, pc_pool_t *pool);
+
+void *pc_array_add(pc_array_t *ary);
+
+#define PC_ARRAY_CLEAR(ary) ((ary)->count = 0)
+
+#define PC_ARRAY_COUNT(ary) ((ary)->count)
 
 
 #ifdef __cplusplus
