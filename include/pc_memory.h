@@ -24,7 +24,11 @@
 #ifndef PC_MEMORY_H
 #define PC_MEMORY_H
 
+/* ### is this always the correct include?  */
+#include <stdarg.h>  /* for va_list  */
+
 #include "pc_types.h"
+#include "pc_misc.h"
 
 
 #ifdef __cplusplus

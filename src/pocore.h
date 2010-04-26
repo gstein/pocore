@@ -55,6 +55,9 @@ union pc_trackreg_u {
 
 
 struct pc_block_s {
+    /* ### do we need a doubly-linked list? HEAD of the list of blocks
+       ### assigned to this pool is pool->first_post.saved_block. the
+       ### TAIL is at pool->current_block.  */
     struct pc_block_s *prev;
     struct pc_block_s *next;
     size_t size;
@@ -69,30 +72,13 @@ struct pc_context_s {
     struct pc_block_s *std_blocks;
 
     /* ### use a bintree to do bestfit.  */
-    struct pc_block_s *nonstd_blocks;
+    struct pc_memtree_s *nonstd_blocks;
 
     /* ### chained hashes to prevent realloc? subpool for this?  */
     pc_hash_t *ptr_to_track;
-    union pc_trackreg_u *free_tracks;
+    union pc_trackreg_u *free_treg;
+    struct pc_tracklist_s *free_tlist;
     struct pc_pool_s *track_pool;
-};
-
-
-struct pc_pool_s {
-    char *current;
-    struct pc_block_s *current_block;
-
-    struct pc_post_s *current_post;
-
-    struct pc_pool_s *parent;
-    struct pc_pool_s *temp_children; /* ### link these */
-
-    struct pc_context_s *ctx;
-
-    /* Inlined. Every pool has a set of owners (tho no dependents). Using
-       a trackreg structure allows the owners to deregister/cleanup and
-       to update the pool's tracking, like any other dependent.  */
-    union pc_trackreg_u track;
 };
 
 
@@ -101,15 +87,57 @@ struct pc_post_s {
     char *saved_current;
     struct pc_block_s *saved_block;
 
-    /* Any nonstd-sized blocks allocated after post was set.  */
+    /* Any nonstd-sized blocks allocated after post was set. These will
+       be queued back into the context when we reset to this post.  */
     struct pc_block_s *nonstd_blocks;
 
     /* The saved value of pool->track.a.owners. Any owners registered since
        the post was set exist from the *current* value of .owners, along
-       the linked list until SAVED_OWNERS is reached.  */
+       the linked list until SAVED_OWNERS is reached.
+
+       Each of these owners is (obviously) tracked. Upon reset, we will
+       invoke the cleanup for each owner.  */
     struct pc_tracklist_s *saved_owners;
 
+    /* The previous post. The FIRST_POST will have prev=NULL.  */
     struct pc_post_s *prev;
+};
+
+
+struct pc_pool_s {
+    char *current;
+    struct pc_block_s *current_block;
+
+    struct pc_memtree_s *remnants;
+
+    struct pc_post_s *current_post;
+
+    struct pc_pool_s *parent;
+
+    /* ### use an array?  */
+    struct pc_pool_s *first_child;
+    struct pc_pool_s *sibling;
+
+    struct pc_context_s *ctx;
+
+    /* Inlined. Every pool has a set of owners (tho no dependents). Using
+       a trackreg structure allows the owners to deregister/cleanup and
+       to update the pool's tracking, like any other dependent.
+
+       When a trackreg is free'd, we can avoid putting this onto the
+       FREE_TREG list by examing the CLEANUP_FUNC (is it the pool's func?)  */
+    union pc_trackreg_u track;
+
+    /* Allocate the first post as part of the pool.  */
+    struct pc_post_s first_post;
+};
+
+
+struct pc_memtree_s {
+    size_t size;
+
+    struct pc_memtree_s *left;
+    struct pc_memtree_s *right;
 };
 
 

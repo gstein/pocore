@@ -1,5 +1,5 @@
 /*
-  pc_misc.c :  miscellaneous portability support
+  misc.c :  miscellaneous portability support
 
   ====================================================================
   Licensed to the Apache Software Foundation (ASF) under one
