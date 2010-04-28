@@ -1,0 +1,9 @@
+Fetched from: http://primes.utm.edu/lists/small/10000.txt
+
+Edited to remove extraneous text, and to only retain primes in the [0,
+65535] range, plus one more as a sentinel. We are looking for twin
+primes no larger than 2^32, so (one of) their factors will be no
+larger than 2^16.
+
+(actually, it has been adjusted downwards to a hash storing no more
+than 2^31 items)
