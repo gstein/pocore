@@ -72,7 +72,15 @@ typedef struct pc_pool_s pc_pool_t;
 typedef struct pc_hash_s pc_hash_t;
 typedef struct pc_hiter_s pc_hiter_t;
 
+/*
+  for (hi = pc_hiter_begin(hash, pool);
+       hi != NULL;
+       hi = pc_hiter_next(hi))
+    { }
+*/
 pc_hash_t *pc_hash_create(pc_pool_t *pool);
+
+pc_hash_t *pc_hash_create_min(pc_pool_t *pool, int min_items);
 
 pc_hash_t *pc_hash_copy(const pc_hash_t *hash, pc_pool_t *pool);
 
@@ -88,9 +96,9 @@ void pc_hash_clear(pc_hash_t *hash);
 
 int pc_hash_count(const pc_hash_t *hash);
 
-pc_hiter_t *pc_hash_first(const pc_hash_t *hash, pc_pool_t *pool);
+pc_hiter_t *pc_hiter_begin(const pc_hash_t *hash, pc_pool_t *pool);
 
-void pc_hiter_next(pc_hiter_t *hiter);
+pc_hiter_t *pc_hiter_next(pc_hiter_t *hiter);
 
 const void *pc_hiter_key(const pc_hiter_t *hiter);
 size_t pc_hiter_klen(const pc_hiter_t *hiter);
