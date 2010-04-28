@@ -140,11 +140,19 @@ void cleanup_owners(struct pc_tracklist_s *owners)
 
 void return_blocks(struct pc_block_s *blocks)
 {
+    while (blocks != NULL)
+    {
+        struct pc_block_s *next = blocks->next;
+
+        /* ### put it back into the context  */
+        free(blocks);
+    }
 }
 
 
 void return_nonstd(struct pc_block_s *nonstd)
 {
+    return_blocks(nonstd);
 }
 
 
@@ -161,6 +169,7 @@ void pc_pool_reset_to(pc_post_t *post)
         /* While the pool is still intact, clean up all the owners that
            were established since we set the post.  */
         cleanup_owners(cur->saved_owners);
+        cur->saved_owners = NULL;
 
         pool->current = cur->saved_current;
         pool->current_block = cur->saved_block;
@@ -168,7 +177,10 @@ void pc_pool_reset_to(pc_post_t *post)
         /* Return all blocks (std and nonstd) that were allocated since
            we established the post.  */
         return_blocks(cur->saved_block->next);
+        cur->saved_block->next = NULL;
+
         return_nonstd(cur->nonstd_blocks);
+        cur->nonstd_blocks = NULL;
 
         if (cur == post)
             break;
