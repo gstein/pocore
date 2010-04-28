@@ -171,7 +171,15 @@ insert_item(const struct pc_hslot_s *item, struct pc_hslot_s *slots, int alloc)
        is a factor of N (N = X * ALLOC). And M = X * STEP.
 
        We will never probe more than ALLOC times -- an empty slot will
-       be in there somewhere.  */
+       be in there somewhere.
+
+       Twin primes are used so that we get STEP values that cover almost
+       the entire range up to ALLOC. This makes it much harder for items
+       to lockstep on the same STEP, creating chains that we must navigate
+       to find an empty slot or a target item. We could generate a STEP
+       just based on ALLOC, but using another prime against the HVALUE
+       introduces better distribution.
+    */
 
     while (probe->key != NULL && probe->key != SLOT_DELETED)
     {
@@ -190,6 +198,7 @@ static void *
 find_value(const pc_hash_t *hash, const void *key, size_t klen,
            pc_u32_t hvalue)
 {
+    /* See insert_item() for a discussion of our probing strategy.  */
     int start = hvalue % hash->alloc;
     int idx = start;
     int step = (hvalue % (hash->alloc - 2)) + 1;
