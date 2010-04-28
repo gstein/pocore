@@ -2,22 +2,22 @@
   memory.c :  memory handling functions
 
   ====================================================================
-  Licensed to the Apache Software Foundation (ASF) under one
-  or more contributor license agreements.  See the NOTICE file
-  distributed with this work for additional information
-  regarding copyright ownership.  The ASF licenses this file
-  to you under the Apache License, Version 2.0 (the
-  "License"); you may not use this file except in compliance
-  with the License.  You may obtain a copy of the License at
- 
-  http://www.apache.org/licenses/LICENSE-2.0
- 
-  Unless required by applicable law or agreed to in writing,
-  software distributed under the License is distributed on an
-  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-  KIND, either express or implied.  See the License for the
-  specific language governing permissions and limitations
-  under the License.
+     Licensed to the Apache Software Foundation (ASF) under one
+     or more contributor license agreements.  See the NOTICE file
+     distributed with this work for additional information
+     regarding copyright ownership.  The ASF licenses this file
+     to you under the Apache License, Version 2.0 (the
+     "License"); you may not use this file except in compliance
+     with the License.  You may obtain a copy of the License at
+    
+       http://www.apache.org/licenses/LICENSE-2.0
+    
+     Unless required by applicable law or agreed to in writing,
+     software distributed under the License is distributed on an
+     "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+     KIND, either express or implied.  See the License for the
+     specific language governing permissions and limitations
+     under the License.
   ====================================================================
 */
 
@@ -64,8 +64,9 @@ struct pc_block_s *get_block(pc_context_t *ctx)
 {
     struct pc_block_s *block;
 
-    /* ### get from context  */
-    block = NULL;
+    /* ### should get a block from the context. for now: early bootstrap
+       ### with a simple malloc.  */
+    block = malloc(ctx->stdsize);
 
     block->prev = NULL;
     block->next = NULL;
@@ -75,9 +76,9 @@ struct pc_block_s *get_block(pc_context_t *ctx)
 }
 
 
-pc_pool_t *pc_pool_create(pc_pool_t *parent)
+pc_pool_t *pc_pool_root(pc_context_t *ctx)
 {
-    struct pc_block_s *block = get_block(parent->ctx);
+    struct pc_block_s *block = get_block(ctx);
     pc_pool_t *pool;
 
     /* ### align these sizeof values?  */
@@ -88,12 +89,22 @@ pc_pool_t *pc_pool_create(pc_pool_t *parent)
     pool->current = (char *)pool + sizeof(*pool);
     pool->current_block = block;
     pool->current_post = &pool->first_post;
-    pool->parent = parent;
-    pool->ctx = parent->ctx;
+    pool->parent = NULL;
+    pool->ctx = ctx;
 
     pool->first_post.owner = pool;
     pool->first_post.saved_current = pool->current;
     pool->first_post.saved_block = block;
+
+    return pool;
+}
+
+
+pc_pool_t *pc_pool_create(pc_pool_t *parent)
+{
+    pc_pool_t *pool = pc_pool_root(parent->ctx);
+
+    pool->parent = parent;
 
     /* Hook this pool into the parent.  */
     pool->sibling = parent->first_child;
@@ -123,6 +134,7 @@ pc_post_t *pc_post_create(pc_pool_t *pool)
 
 void cleanup_owners(struct pc_tracklist_s *owners)
 {
+    /* ### no tracking yet  */
 }
 
 
@@ -164,4 +176,82 @@ void pc_pool_reset_to(pc_post_t *post)
     }
 
     pool->current_post = post;
+}
+
+
+void pc_pool_destroy(pc_pool_t *pool)
+{
+    pc_pool_reset_to(NULL);
+
+    /* ### more  */
+}
+
+
+void *pc_alloc(pc_pool_t *pool, size_t amt)
+{
+    /* ### need to do something here!  */
+    return NULL;
+}
+
+
+char *pc_strdup(pc_pool_t *pool, const char *str)
+{
+    size_t len = strlen(str);
+
+    return pc_strmemdup(pool, str, len);
+}
+
+
+char *pc_strmemdup(pc_pool_t *pool, const char *str, size_t len)
+{
+    char *result = pc_alloc(pool, len + 1);
+
+    memcpy(result, str, len);
+    result[len] = '\0';
+    return result;
+}
+
+
+char *pc_strndup(pc_pool_t *pool, const char *str, size_t amt)
+{
+    const char *end = memchr(str, '\0', amt);
+    char *result;
+
+    if (end != NULL)
+        amt = end - str;
+
+    return pc_strmemdup(pool, str, amt);
+}
+
+
+void *pc_memdup(pc_pool_t *pool, void *mem, size_t len)
+{
+    void *result = pc_alloc(pool, len);
+
+    memcpy(result, mem, len);
+    return result;
+}
+
+
+char *pc_strcat(pc_pool_t *pool, ...)
+{
+    return NULL;
+}
+
+
+char *pc_vsprintf(pc_pool_t *pool, const char *fmt, va_list ap)
+{
+    return NULL;
+}
+
+
+char *pc_sprintf(pc_pool_t *pool, const char *fmt, ...)
+{
+    return NULL;
+}
+
+
+void pc_pool_track(pc_pool_t *pool)
+{
+    /* ### need to track...  */
 }
