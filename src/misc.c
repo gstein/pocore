@@ -41,3 +41,11 @@ pc_context_t *pc_context_create(size_t stdsize,
 
     return ctx;
 }
+
+
+void pc_context_destroy(pc_context_t *ctx)
+{
+    /* ### do stuff with the memory hanging around in here.  */
+
+    free(ctx);
+}

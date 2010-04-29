@@ -39,6 +39,8 @@ typedef struct pc_context_s pc_context_t;
 pc_context_t *pc_context_create(size_t stdsize,
                                 int (*oom_handler)(size_t amt));
 
+void pc_context_destroy(pc_context_t *ctx);
+
 
 /* ### uuid  */
 
