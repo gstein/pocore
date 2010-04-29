@@ -140,12 +140,15 @@ compute_str_hvalue(const char *key, size_t *klen)
 }
 
 
-static void
+/* Returns TRUE if the key was previously in the hash.  */
+static pc_bool_t
 insert_item(const struct pc_hslot_s *item, struct pc_hslot_s *slots, int alloc)
 {
+    pc_bool_t existed = FALSE;
     int idx = item->hvalue % alloc;
     int step = (item->hvalue % (alloc - 2)) + 1;
     struct pc_hslot_s *probe = &slots[idx];
+    struct pc_hslot_s *deleted = NULL;
 
     /* Given that ALLOC is prime, then any value of STEP will sequence
        through all of SLOTS before returning to the initial probe at IDX.
@@ -181,16 +184,40 @@ insert_item(const struct pc_hslot_s *item, struct pc_hslot_s *slots, int alloc)
        introduces better distribution.
     */
 
-    while (probe->key != NULL && probe->key != SLOT_DELETED)
+    while (probe->key != NULL)
     {
+        if (probe->key == SLOT_DELETED)
+        {
+            /* Remember this slot. We may be able to use it.  */
+            if (deleted == NULL)
+                deleted = probe;
+        }
+        else if (probe->hvalue == item->hvalue
+                 && probe->klen == item->klen
+                 && memcmp(probe->key, item->key, probe->klen) == 0)
+        {
+            /* We found the node!  */
+            existed = TRUE;
+            break;
+        }
+
         idx = (idx + step) % alloc;
         probe = &slots[idx];
     }
+
+    existed = (probe->key != NULL);
+
+    /* If we did not find the key, there MAY be a deleted slot that we can
+       use which is "closer" to the start.  */
+    if (!existed && deleted != NULL)
+        probe = deleted;
 
     if (item->value == NULL)
         probe->key = SLOT_DELETED;
     else
         *probe = *item;
+
+    return existed;
 }
 
 
@@ -217,7 +244,7 @@ find_value(const pc_hash_t *hash, const void *key, size_t klen,
 
         if (probe->hvalue == hvalue
             && probe->klen == klen
-            && memcmp(probe->key, key, klen))
+            && memcmp(probe->key, key, klen) == 0)
             return probe->value;
 
         idx = (idx + step) % hash->alloc;
@@ -322,6 +349,7 @@ pc_hash_t *pc_hash_copy(const pc_hash_t *hash, pc_pool_t *pool)
 
     /* And insert the items into the (clean) RESULT.  */
     copy_items(hash, result->slots, result->alloc);
+    result->count = hash->count;
 
     return result;
 }
@@ -331,10 +359,14 @@ void pc_hash_set(pc_hash_t *hash, const void *key, size_t klen, void *value)
 {
     pc_u32_t hvalue = compute_hvalue(key, klen);
     struct pc_hslot_s item = { key, klen, hvalue, value };
+    pc_bool_t existed;
 
     maybe_grow(hash);
-    insert_item(&item, hash->slots, hash->alloc);
-    ++hash->count;
+    existed = insert_item(&item, hash->slots, hash->alloc);
+    if (!existed && value != NULL)
+        ++hash->count;
+    else if (existed && value == NULL)
+        --hash->count;
 }
 
 
@@ -343,10 +375,14 @@ void pc_hash_sets(pc_hash_t *hash, const char *key, void *value)
     size_t klen;
     pc_u32_t hvalue = compute_str_hvalue(key, &klen);
     struct pc_hslot_s item = { key, klen, hvalue, value };
+    pc_bool_t existed;
 
     maybe_grow(hash);
-    insert_item(&item, hash->slots, hash->alloc);
-    ++hash->count;
+    existed = insert_item(&item, hash->slots, hash->alloc);
+    if (!existed && value != NULL)
+        ++hash->count;
+    else if (existed && value == NULL)
+        --hash->count;
 }
 
 
