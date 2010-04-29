@@ -259,20 +259,35 @@ void pc_pool_destroy(pc_pool_t *pool)
     /* Remove this pool from the parent's list of child pools.  */
     if (pool->parent != NULL)
     {
-        pc_pool_t *scan = pool->parent->current_post->child;
+        pc_post_t *post;
 
-        if (scan == pool)
+        /* We don't actually need a condition on this for loop because
+           we KNOW that we'll find the child somewhere.  */
+        for (post = pool->parent->current_post; ; post = post->prev)
         {
-            /* We're at the head of the list. Point it to the next pool.  */
-            pool->parent->current_post->child = pool->sibling;
-        }
-        else
-        {
-            /* Find the child pool which refers to us, and then reset its
-               sibling link to skip self.  */
-            while (scan->sibling != pool)
-                scan = scan->sibling;
-            scan->sibling = pool->sibling;
+            pc_pool_t *scan = post->child;
+
+            if (scan == pool)
+            {
+                /* We're at the head of the list. Point it to the
+                   next pool.  */
+                post->child = pool->sibling;
+                break;
+            }
+            else
+            {
+                /* Find the child pool which refers to us, and then reset its
+                   sibling link to skip self.  */
+                while (scan != NULL && scan->sibling != pool)
+                    scan = scan->sibling;
+                if (scan != NULL)
+                {
+                    scan->sibling = pool->sibling;
+                    break;
+                }
+
+                /* Move on to the next post.  */
+            }
         }
     }
 
