@@ -204,8 +204,8 @@ void pc_pool_clear(pc_pool_t *pool)
 
 void pc_pool_destroy(pc_pool_t *pool)
 {
-    /* Clean out everything done since we set the first post.  */
-    pc_pool_reset_to(NULL);
+    /* Clear out everything in the pool.  */
+    pc_pool_clear(pool);
 
     /* Return the last block (which also contains this pool) to
        the context.  */
