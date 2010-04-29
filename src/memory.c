@@ -68,7 +68,6 @@ struct pc_block_s *get_block(pc_context_t *ctx)
        ### with a simple malloc.  */
     block = malloc(ctx->stdsize);
 
-    block->prev = NULL;
     block->next = NULL;
     block->size = ctx->stdsize;
 
@@ -152,6 +151,8 @@ void return_blocks(struct pc_block_s *blocks)
 
 void return_nonstd(struct pc_block_s *nonstd)
 {
+    /* ### just throw them away for now. eventually, put them back into
+       ### the context.  */
     return_blocks(nonstd);
 }
 
@@ -164,6 +165,8 @@ void pc_pool_reset_to(pc_post_t *post)
     if (post == NULL)
         post = &pool->first_post;
 
+    /* Reset to each (newer) post, backwards through the chain, until we
+       reach the desired post.  */
     while (TRUE)
     {
         /* While the pool is still intact, clean up all the owners that
@@ -182,6 +185,10 @@ void pc_pool_reset_to(pc_post_t *post)
         return_nonstd(cur->nonstd_blocks);
         cur->nonstd_blocks = NULL;
 
+        /* Remnants come only from blocks. Those blocks have been recovered,
+           so there are no remnants available for use.  */
+        cur->remnants = NULL;
+
         if (cur == post)
             break;
         cur = cur->prev;
@@ -193,16 +200,65 @@ void pc_pool_reset_to(pc_post_t *post)
 
 void pc_pool_destroy(pc_pool_t *pool)
 {
+    /* Clean out everything done since we set the first post.  */
     pc_pool_reset_to(NULL);
 
-    /* ### more  */
+    /* Return the last block (which also contains this pool) to
+       the context.  */
+    return_blocks(pool->current_block);
 }
 
 
 void *pc_alloc(pc_pool_t *pool, size_t amt)
 {
-    /* ### need to do something here!  */
-    return NULL;
+    size_t remaining;
+    void *result;
+    struct pc_block_s *block;
+
+    /* ### is 4 a good alignment? or maybe 8 bytes?  */
+    amt = (amt + 3) & ~3;
+
+    /* Can we provide the allocation out of the current block?  */
+    remaining = (((char *)pool->current_block + pool->current_block->size)
+                 - pool->current);
+    if (remaining >= amt)
+    {
+        result = pool->current;
+        pool->current += amt;
+        return result;
+    }
+
+    /* ### look in the remnants  */
+
+    if (amt <= pool->ctx->stdsize)
+    {
+        /* ### TODO: for the (old) CURRENT_BLOCK, save the remaining space
+           ### into current_post->remnants. (if it is larger than
+           ### sizeof(pc_memtree_s))
+        */
+
+        block = get_block(pool->ctx);
+
+        result = (char *)block + sizeof(*block);
+
+        pool->current_block->next = block;
+        pool->current_block = block;
+
+        pool->current = (char *)result + amt;
+
+        return result;
+    }
+
+    /* We need a non-standard-sized allocation.  */
+
+    /* ### get it from somewhere  */
+    block = malloc(sizeof(*block) + amt);
+    block->next = pool->current_post->nonstd_blocks;
+    block->size = sizeof(*block) + amt;
+
+    pool->current_post->nonstd_blocks = block;
+
+    return (char *)block + sizeof(*block);
 }
 
 

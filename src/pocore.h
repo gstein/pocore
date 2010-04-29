@@ -55,11 +55,9 @@ union pc_trackreg_u {
 
 
 struct pc_block_s {
-    /* ### do we need a doubly-linked list? HEAD of the list of blocks
-       ### assigned to this pool is pool->first_post.saved_block. the
-       ### TAIL is at pool->current_block.  */
-    struct pc_block_s *prev;
     struct pc_block_s *next;
+
+    /* This size INCLUDES the space used by this structure.  */
     size_t size;
 };
 
@@ -84,8 +82,16 @@ struct pc_context_s {
 
 struct pc_post_s {
     struct pc_pool_s *owner;
+
+    /* The original position within the saved block.  */
     char *saved_current;
+
+    /* The original block allocations were coming from. pool->current_block
+       may be the same, or linked from here via the ->next chain.  */
     struct pc_block_s *saved_block;
+
+    /* Any remnants created after the post was set.  */
+    struct pc_memtree_s *remnants;
 
     /* Any nonstd-sized blocks allocated after post was set. These will
        be queued back into the context when we reset to this post.  */
@@ -106,14 +112,14 @@ struct pc_post_s {
 
 struct pc_pool_s {
     char *current;
-    struct pc_block_s *current_block;
 
-    struct pc_memtree_s *remnants;
+    /* Standard-size blocks are linked from the pool since a single block
+       may be shared across multiple posts.  */
+    struct pc_block_s *current_block;
 
     struct pc_post_s *current_post;
 
     struct pc_pool_s *parent;
-
     /* ### use an array?  */
     struct pc_pool_s *first_child;
     struct pc_pool_s *sibling;
@@ -133,10 +139,15 @@ struct pc_pool_s {
 };
 
 
+/* A binary tree containing pieces of memory to re-use.  */
 struct pc_memtree_s {
+    /* Size of this piece of memory.  */
     size_t size;
 
+    /* Any pieces that are SMALLER than this piece.  */
     struct pc_memtree_s *left;
+
+    /* Any pieces that are EQUAL or LARGER than this piece.  */
     struct pc_memtree_s *right;
 };
 
