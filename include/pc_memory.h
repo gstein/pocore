@@ -64,10 +64,10 @@ void pc_pool_destroy(pc_pool_t *pool);
 
 pc_post_t *pc_post_create(pc_pool_t *pool);
 
-/* If POST is NULL, then the entire pool will be reset.
-
-   Any tracked owners (established since the POST) will be cleaned up.  */
+/* Any tracked owners (established since the POST) will be cleaned up.  */
 void pc_pool_reset_to(pc_post_t *post);
+
+void pc_pool_clear(pc_pool_t *pool);
 
 /* Begin tracking for this pool.  */
 void pc_pool_track(pc_pool_t *pool);

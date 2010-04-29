@@ -71,7 +71,7 @@ struct pc_block_s *get_block(pc_context_t *ctx)
     block->next = NULL;
     block->size = ctx->stdsize;
 
-    return NULL;
+    return block;
 }
 
 
@@ -145,6 +145,7 @@ void return_blocks(struct pc_block_s *blocks)
 
         /* ### put it back into the context  */
         free(blocks);
+        blocks = next;
     }
 }
 
@@ -161,9 +162,6 @@ void pc_pool_reset_to(pc_post_t *post)
 {
     pc_pool_t *pool = post->owner;
     pc_post_t *cur = pool->current_post;
-
-    if (post == NULL)
-        post = &pool->first_post;
 
     /* Reset to each (newer) post, backwards through the chain, until we
        reach the desired post.  */
@@ -195,6 +193,12 @@ void pc_pool_reset_to(pc_post_t *post)
     }
 
     pool->current_post = post;
+}
+
+
+void pc_pool_clear(pc_pool_t *pool)
+{
+    pc_pool_reset_to(&pool->first_post);
 }
 
 
