@@ -21,7 +21,9 @@
   ====================================================================
 */
 
+#include <assert.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "pc_types.h"
 #include "pc_memory.h"
@@ -59,19 +61,37 @@
   Heh. One answer is "wtf you doing allocating unbounded memory?"
 */
 
+#ifdef PC_DEBUG
+#define POOL_USABLE(pool) assert((pool)->current != NULL);
+#else
+#define POOL_USABLE(pool) ((void)0)
+#endif
 
-struct pc_block_s *get_block(pc_context_t *ctx)
+
+struct pc_block_s *alloc_block(size_t size)
 {
     struct pc_block_s *block;
 
     /* ### should get a block from the context. for now: early bootstrap
        ### with a simple malloc.  */
-    block = malloc(ctx->stdsize);
+    block = malloc(size
+#ifdef PC_DEBUG
+                   + 4
+#endif
+        );
 
     block->next = NULL;
-    block->size = ctx->stdsize;
+    block->size = size;
 
+#ifdef PC_DEBUG
+    *(pc_u32_t *)((char *)block + size) = 0x12345678;
+#endif
     return block;
+}
+
+struct pc_block_s *get_block(pc_context_t *ctx)
+{
+    return alloc_block(ctx->stdsize);
 }
 
 
@@ -105,9 +125,9 @@ pc_pool_t *pc_pool_create(pc_pool_t *parent)
 
     pool->parent = parent;
 
-    /* Hook this pool into the parent.  */
-    pool->sibling = parent->first_child;
-    parent->first_child = pool;
+    /* Hook this pool into the parent's current post.  */
+    pool->sibling = parent->current_post->child;
+    parent->current_post->child = pool;
 
     return pool;
 }
@@ -117,12 +137,16 @@ pc_post_t *pc_post_create(pc_pool_t *pool)
 {
     pc_post_t *post = pc_alloc(pool, sizeof(*post));
 
+    POOL_USABLE(pool);
+
     post->owner = pool;
     post->saved_current = pool->current;
     post->saved_block = pool->current_block;
+    post->remnants = NULL;
     post->nonstd_blocks = NULL;
     /* ### what if it isn't being tracked?  */
     post->saved_owners = pool->track.a.owners;
+    post->child = NULL;
     post->prev = pool->current_post;
 
     pool->current_post = post;
@@ -143,7 +167,15 @@ void return_blocks(struct pc_block_s *blocks)
     {
         struct pc_block_s *next = blocks->next;
 
-        /* ### put it back into the context  */
+        /* ### TODO: put it back into the context  */
+
+#ifdef PC_DEBUG
+        /* ### simple guard against double-free  */
+        assert(blocks->size != 0);
+        assert(*(pc_u32_t *)((char *)blocks + blocks->size) == 0x12345678);
+        blocks->size = 0;
+#endif
+
         free(blocks);
         blocks = next;
     }
@@ -163,14 +195,27 @@ void pc_pool_reset_to(pc_post_t *post)
     pc_pool_t *pool = post->owner;
     pc_post_t *cur = pool->current_post;
 
+    POOL_USABLE(pool);
+
     /* Reset to each (newer) post, backwards through the chain, until we
        reach the desired post.  */
     while (TRUE)
     {
+        pc_pool_t *scan;
+
         /* While the pool is still intact, clean up all the owners that
-           were established since we set the post.  */
+           were established since we set the post.
+
+           NOTE: run these first, while the pool is still "unmodified". They
+           may need something from this pool (ie. something with a longer
+           lifetime which is sitting in this pool).  */
         cleanup_owners(cur->saved_owners);
         cur->saved_owners = NULL;
+
+        /* Destroy all the child pools since this post was set.  */
+        for (scan = cur->child; scan != NULL; scan = scan->sibling)
+            pc_pool_destroy(scan);
+        cur->child = NULL;
 
         pool->current = cur->saved_current;
         pool->current_block = cur->saved_block;
@@ -198,14 +243,44 @@ void pc_pool_reset_to(pc_post_t *post)
 
 void pc_pool_clear(pc_pool_t *pool)
 {
+    POOL_USABLE(pool);
+
     pc_pool_reset_to(&pool->first_post);
 }
 
 
 void pc_pool_destroy(pc_pool_t *pool)
 {
+    POOL_USABLE(pool);
+
     /* Clear out everything in the pool.  */
     pc_pool_clear(pool);
+
+    /* Remove this pool from the parent's list of child pools.  */
+    if (pool->parent != NULL)
+    {
+        pc_pool_t *scan = pool->parent->current_post->child;
+
+        if (scan == pool)
+        {
+            /* We're at the head of the list. Point it to the next pool.  */
+            pool->parent->current_post->child = pool->sibling;
+        }
+        else
+        {
+            /* Find the child pool which refers to us, and then reset its
+               sibling link to skip self.  */
+            while (scan->sibling != pool)
+                scan = scan->sibling;
+            scan->sibling = pool->sibling;
+        }
+    }
+
+#ifdef PC_DEBUG
+    /* Leave a marker that we've destroyed this pool already. This will
+       also prevent further attempts at use.  */
+    pool->current = NULL;
+#endif
 
     /* Return the last block (which also contains this pool) to
        the context.  */
@@ -218,6 +293,8 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
     size_t remaining;
     void *result;
     struct pc_block_s *block;
+
+    POOL_USABLE(pool);
 
     /* ### is 4 a good alignment? or maybe 8 bytes?  */
     amt = (amt + 3) & ~3;
@@ -234,7 +311,7 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
 
     /* ### look in the remnants  */
 
-    if (amt <= pool->ctx->stdsize)
+    if (amt <= pool->ctx->stdsize - sizeof(struct pc_block_s))
     {
         /* ### TODO: for the (old) CURRENT_BLOCK, save the remaining space
            ### into current_post->remnants. (if it is larger than
@@ -256,10 +333,9 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
     /* We need a non-standard-sized allocation.  */
 
     /* ### get it from somewhere  */
-    block = malloc(sizeof(*block) + amt);
-    block->next = pool->current_post->nonstd_blocks;
-    block->size = sizeof(*block) + amt;
+    block = alloc_block(sizeof(*block) + amt);
 
+    block->next = pool->current_post->nonstd_blocks;
     pool->current_post->nonstd_blocks = block;
 
     return (char *)block + sizeof(*block);

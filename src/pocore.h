@@ -32,6 +32,14 @@ extern "C" {
 #endif /* __cplusplus */
 
 
+/* Add debugging support. This is omitted from release builds.  */
+/* ### not sure this construction is entirely right, but whatever. we want
+   ### this stuff in here right now.  */
+#ifndef NDEBUG
+#define PC_DEBUG
+#endif
+
+
 struct pc_tracklist_s {
     struct pc_trackreg_s *reg;
     struct pc_tracklist_s *next;
@@ -105,6 +113,10 @@ struct pc_post_s {
        invoke the cleanup for each owner.  */
     struct pc_tracklist_s *saved_owners;
 
+    /* Any child pools created since the post was set. These are linked
+       through their SIBLING member.  */
+    struct pc_pool_s *child;
+
     /* The previous post. The FIRST_POST will have prev=NULL.  */
     struct pc_post_s *prev;
 };
@@ -120,8 +132,6 @@ struct pc_pool_s {
     struct pc_post_s *current_post;
 
     struct pc_pool_s *parent;
-    /* ### use an array?  */
-    struct pc_pool_s *first_child;
     struct pc_pool_s *sibling;
 
     struct pc_context_s *ctx;
