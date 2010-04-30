@@ -80,8 +80,8 @@ struct pc_block_s *alloc_block(size_t size)
 #endif
         );
 
-    block->next = NULL;
     block->size = size;
+    block->next = NULL;
 
 #ifdef PC_DEBUG
     *(pc_u32_t *)((char *)block + size) = 0x12345678;
@@ -91,7 +91,15 @@ struct pc_block_s *alloc_block(size_t size)
 
 struct pc_block_s *get_block(pc_context_t *ctx)
 {
-    return alloc_block(ctx->stdsize);
+    struct pc_block_s *result;
+
+    if (ctx->std_blocks == NULL)
+        return alloc_block(ctx->stdsize);
+
+    result = ctx->std_blocks;
+    ctx->std_blocks = result->next;
+    result->next = NULL;
+    return result;
 }
 
 
@@ -140,6 +148,7 @@ pc_post_t *pc_post_create(pc_pool_t *pool)
     POOL_USABLE(pool);
 
     post->owner = pool;
+    post->coalesce = FALSE;
     post->saved_current = pool->current;
     post->saved_block = pool->current_block;
     post->remnants = NULL;
@@ -161,8 +170,10 @@ void cleanup_owners(struct pc_tracklist_s *owners)
 }
 
 
-void return_blocks(struct pc_block_s *blocks)
+void return_nonstd(struct pc_block_s *blocks)
 {
+    /* ### just throw them away for now. eventually, put them back into
+       ### the context.  */
     while (blocks != NULL)
     {
         struct pc_block_s *next = blocks->next;
@@ -182,11 +193,23 @@ void return_blocks(struct pc_block_s *blocks)
 }
 
 
-void return_nonstd(struct pc_block_s *nonstd)
+void return_blocks(pc_context_t *ctx, struct pc_block_s *blocks)
 {
-    /* ### just throw them away for now. eventually, put them back into
-       ### the context.  */
-    return_blocks(nonstd);
+    if (blocks != NULL)
+    {
+        struct pc_block_s *scan = blocks;
+
+        /* Scan to the last block in the chain.  */
+        /* ### a pointer to the tail in CTX or in POST could remove this
+           ### scan. WAIT... we DO have the tail. the last block is
+           ### pool->current_block. oooh.... */
+        while (scan->next != NULL)
+            scan = scan->next;
+
+        /* Insert the whole chain into the context.  */
+        scan->next = ctx->std_blocks;
+        ctx->std_blocks = blocks;
+    }
 }
 
 
@@ -222,7 +245,7 @@ void pc_pool_reset_to(pc_post_t *post)
 
         /* Return all blocks (std and nonstd) that were allocated since
            we established the post.  */
-        return_blocks(cur->saved_block->next);
+        return_blocks(pool->ctx, cur->saved_block->next);
         cur->saved_block->next = NULL;
 
         return_nonstd(cur->nonstd_blocks);
@@ -299,7 +322,7 @@ void pc_pool_destroy(pc_pool_t *pool)
 
     /* Return the last block (which also contains this pool) to
        the context.  */
-    return_blocks(pool->current_block);
+    return_blocks(pool->ctx, pool->current_block);
 }
 
 

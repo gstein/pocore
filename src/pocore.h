@@ -67,10 +67,10 @@ union pc_trackreg_u {
 
 
 struct pc_block_s {
-    struct pc_block_s *next;
-
     /* This size INCLUDES the space used by this structure.  */
     size_t size;
+
+    struct pc_block_s *next;
 };
 
 
@@ -95,7 +95,13 @@ struct pc_context_s {
 
 
 struct pc_post_s {
+    /* This post is placed in the OWNER pool.  */
     struct pc_pool_s *owner;
+
+    /* Should allocations made after placing this post be coalescable?
+       Or more specifically: when memory is returned to this post/pool,
+       should we attempt to coalesce them?  */
+    pc_bool_t coalesce;
 
     /* The original position within the saved block.  */
     char *saved_current;
@@ -173,22 +179,21 @@ struct pc_pool_s {
      http://en.wikipedia.org/wiki/Red-black_tree
 */
 struct pc_memtree_s {
-    /* Size of this piece of memory. The low-order bit is a flag.  */
-    size_t size;
-#define PC_MEMTREE_SIZE(m)  ((m)->size & ~1)
-#define PC_MEMTREE_BLACK(m)  (((m)->size & 1) == 0)
-#define PC_MEMTREE_RED(m)  (((m)->size & 1) == 1)
+    /* The block contains this node's size, and NEXT field links to other
+       (free) blocks of this same size.
+
+       Note that the size's low-order bit is a flag (see below)  */
+    struct pc_block_s b;
+
+#define PC_MEMTREE_SIZE(m)  ((m)->b.size & ~1)
+#define PC_MEMTREE_BLACK(m)  (((m)->b.size & 1) == 0)
+#define PC_MEMTREE_RED(m)  (((m)->b.size & 1) == 1)
 
     /* Any pieces that are SMALLER than this piece.  */
     struct pc_memtree_s *smaller;
 
     /* Any pieces that are LARGER than this piece.  */
     struct pc_memtree_s *larger;
-
-    /* Any pieces of memory that are EQUAL in size to this piece. Note
-       that we no longer require a tree, so the chain uses a simple
-       pc_block_s structure.  */
-    struct pc_block_s *equal;
 };
 
 
