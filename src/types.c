@@ -313,6 +313,9 @@ pc_hash_t *pc_hash_create_min(pc_pool_t *pool, int min_items)
 {
     pc_hash_t *result = pc_alloc(pool, sizeof(*result));
 
+    result->count = 0;
+    result->pool = pool;
+
     if (min_items > 1000000000)
         result->twins_index = TWINS_COUNT - 1;
     else
