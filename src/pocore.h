@@ -31,6 +31,10 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* ### for now, many of the library's core structures are library-visible.
+   ### many will become private.
+*/
+
 
 /* Add debugging support. This is omitted from release builds.  */
 /* ### not sure this construction is entirely right, but whatever. we want
@@ -80,7 +84,9 @@ struct pc_context_s {
     /* ### use a bintree to do bestfit.  */
     struct pc_memtree_s *nonstd_blocks;
 
-    /* ### chained hashes to prevent realloc? subpool for this?  */
+    /* ### chained hashes to prevent realloc? subpool for this?
+       ### we'll probably have the hash code return memory to its pool,
+       ### so a realloc will not be much of a problem.  */
     pc_hash_t *ptr_to_track;
     union pc_trackreg_u *free_treg;
     struct pc_tracklist_s *free_tlist;
@@ -149,16 +155,40 @@ struct pc_pool_s {
 };
 
 
-/* A binary tree containing pieces of memory to re-use.  */
+/* A red-back binary tree containing pieces of memory to re-use.
+
+   These pieces are:
+
+     1) remnants from the end of a block that were "left behind" when we
+        allocated and advanced to another block to satisfy a request.
+     2) non-standard-sized (large) blocks that have been returned
+
+   Note that the size of this structure provides a minimize size for
+   remnants. If a remnant is smaller than this structure, it is simply
+   "thrown away".
+
+   We use red-black trees to guarantee worst-case time of O(log n) for
+   all operations on this tree. We cannot afford O(n) worst case. For
+   more information on red-black trees, see:
+     http://en.wikipedia.org/wiki/Red-black_tree
+*/
 struct pc_memtree_s {
-    /* Size of this piece of memory.  */
+    /* Size of this piece of memory. The low-order bit is a flag.  */
     size_t size;
+#define PC_MEMTREE_SIZE(m)  ((m)->size & ~1)
+#define PC_MEMTREE_BLACK(m)  (((m)->size & 1) == 0)
+#define PC_MEMTREE_RED(m)  (((m)->size & 1) == 1)
 
     /* Any pieces that are SMALLER than this piece.  */
-    struct pc_memtree_s *left;
+    struct pc_memtree_s *smaller;
 
-    /* Any pieces that are EQUAL or LARGER than this piece.  */
-    struct pc_memtree_s *right;
+    /* Any pieces that are LARGER than this piece.  */
+    struct pc_memtree_s *larger;
+
+    /* Any pieces of memory that are EQUAL in size to this piece. Note
+       that we no longer require a tree, so the chain uses a simple
+       pc_block_s structure.  */
+    struct pc_block_s *equal;
 };
 
 
