@@ -158,6 +158,31 @@ def print_histogram(label, hist):
 
 
 def write_test_program(filename):
+  write_test_code(filename,
+                  type='apr_pool_t',
+                  root='apr_pool_create(&p%s, 0);',
+                  create='apr_pool_create(&p%s, p%s);',
+                  alloc='apr_palloc(p%s, %s);',
+                  clear='apr_pool_clear(p%s);',
+                  destroy='apr_pool_destroy(p%s);',
+                  header=HEADER_APR,
+                  footer=FOOTER_APR,
+                  )
+
+def write_test_pocore(filename):
+  write_test_code(filename,
+                  type='pc_pool_t',
+                  root='p%s = pc_pool_root(pc_context_create(8192,0));',
+                  create='p%s = pc_pool_create(p%s);',
+                  alloc='pc_alloc(p%s, %s);',
+                  clear='pc_pool_clear(p%s);',
+                  destroy='pc_pool_destroy(p%s);',
+                  header=HEADER_PC,
+                  footer=FOOTER_PC,
+                  )
+
+def write_test_code(filename, type, root, create, alloc, clear, destroy,
+                    header, footer):
   data = load_data(filename)
 
   varnames = { }
@@ -168,28 +193,31 @@ def write_test_program(filename):
   children['0x0'] = [ ]
   dead = varnames.copy()
 
-  print HEADER
+  print header
   for name in varnames.keys():
-    print 'apr_pool_t *p%s;' % (name,)
+    print '%s *p%s;' % (type, name,)
   for action, pool, parent, amt in data:
     if action == 'create':
       if parent == '0x0':
-        print 'apr_pool_create(&p%s, 0);' % (pool,)
+        print root % (pool,)
       else:
-        print 'apr_pool_create(&p%s, p%s);' % (pool, parent)
+        print create % (pool, parent)
       children[parent].append(pool)
       del dead[pool]
     elif action == 'alloc':
-      print 'apr_palloc(p%s, %s);' % (pool, amt)
+      if pool in dead:
+        print '// BOGUS:', alloc % (pool, amt)
+      else:
+        print alloc % (pool, amt)
     elif action == 'clear':
-      print 'apr_pool_clear(p%s);' % (pool,)
+      print clear % (pool,)
       kill_children(pool, children, dead)
     elif action == 'destroy':
       if pool not in dead:
-        print 'apr_pool_destroy(p%s);' % (pool,)
+        print destroy % (pool,)
         kill_children(pool, children, dead)
         dead[pool] = None
-  print FOOTER
+  print footer
 
 def kill_children(pool, children, dead):
   for child in children[pool]:
@@ -197,7 +225,7 @@ def kill_children(pool, children, dead):
     dead[child] = None
   children[pool] = [ ]
 
-HEADER='''
+HEADER_APR='''
 /* build with: gcc -lapr-1 FILENAME.c  */
 #include <stdio.h>
 #include <mach/mach_time.h>
@@ -207,7 +235,7 @@ int main(int argc, const char **argv)
   apr_initialize();
   uint64_t start = mach_absolute_time();
 '''
-FOOTER='''
+FOOTER_APR='''
   uint64_t end = mach_absolute_time();
   apr_terminate();
   mach_timebase_info_data_t info;
@@ -218,10 +246,34 @@ FOOTER='''
 }
 '''
 
+HEADER_PC='''
+/* build with: gcc -L... -lpc-0 -I... FILENAME.c  */
+#include <stdio.h>
+#include <mach/mach_time.h>
+#include "pc_misc.h"
+#include "pc_memory.h"
+int main(int argc, const char **argv)
+{
+  uint64_t start = mach_absolute_time();
+'''
+FOOTER_PC='''
+  uint64_t end = mach_absolute_time();
+  mach_timebase_info_data_t info;
+  mach_timebase_info(&info);
+  uint64_t elapsed = (end - start) * info.numer / info.denom;
+  printf("elapsed=%d.%03d usec\\n", (int)(elapsed/1000), (int)(elapsed%1000));
+  return 0;
+}
+'''
+
 
 if __name__ == '__main__':
-  if len(sys.argv) >= 2 and sys.argv[1] == '--program':
-    func = write_test_program
+  if len(sys.argv) >= 2 and (sys.argv[1] == '--program'
+                             or sys.argv[1] == '--pocore'):
+    if sys.argv[1] == '--program':
+      func = write_test_program
+    else:
+      func = write_test_pocore
     del sys.argv[1]
   else:
     func = main
