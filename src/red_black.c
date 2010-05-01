@@ -26,6 +26,13 @@
 
     http://en.wikipedia.org/wiki/Red-black_tree
     http://www.upgrade-cepis.org/issues/2004/5/up5-5Mosaic.pdf
+
+
+  It is important to note that the nodes in this tree represent the
+  free memory. We cannot copy node information from one to the next.
+  Thus, node deletion requires manipulation of the tree instead of
+  simply moving values around (as described by most documentation of
+  the red-black tree algorithm).
 */
 
 #include "pc_types.h"
