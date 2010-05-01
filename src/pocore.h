@@ -182,12 +182,9 @@ struct pc_memtree_s {
     /* The block contains this node's size, and NEXT field links to other
        (free) blocks of this same size.
 
-       Note that the size's low-order bit is a flag (see below)  */
+       Note that the size's low-order bit is a flag. See the various
+       macros in red_black.c.  */
     struct pc_block_s b;
-
-#define PC_MEMTREE_SIZE(m)  ((m)->b.size & ~1)
-#define PC_MEMTREE_BLACK(m)  (((m)->b.size & 1) == 0)
-#define PC_MEMTREE_RED(m)  (((m)->b.size & 1) == 1)
 
     /* Any pieces that are SMALLER than this piece.  */
     struct pc_memtree_s *smaller;
@@ -196,6 +193,12 @@ struct pc_memtree_s {
     struct pc_memtree_s *larger;
 };
 
+
+/* ### docco  */
+void
+pc__memtree_insert(struct pc_memtree_s **root,
+                   void *mem,
+                   size_t size);
 
 #ifdef __cplusplus
 }
