@@ -1,5 +1,5 @@
 /*
-  red_black.c :  a red-black tree for use by the memory subsystem
+  memtree.c :  a red-black tree for use by the memory subsystem
 
   ====================================================================
      Licensed to the Apache Software Foundation (ASF) under one
