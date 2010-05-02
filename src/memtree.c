@@ -75,25 +75,63 @@ get_uncle(struct pc_memtree_s *parents[], int depth)
 }
 
 
-/* See: http://en.wikipedia.org/wiki/Tree_rotation  */
+/* See: http://en.wikipedia.org/wiki/Tree_rotation
+
+   OLD_ROOT will be pushed down, and NEW_ROOT lifted up. Pass a reference
+   the the parent's link to OLD_ROOT so that we can update it.  */
 /* ### inline this  */
 static void
-rotate_left(struct pc_memtree_s *pivot, struct pc_memtree_s **root)
+rotate_left(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 {
-    (*root)->larger = pivot->smaller;
-    pivot->smaller = *root;
-    *root = pivot;
+    (*old_root)->larger = new_root->smaller;
+    new_root->smaller = *old_root;
+    *old_root = new_root;
 }
 
 
-/* See: http://en.wikipedia.org/wiki/Tree_rotation  */
+/* See: http://en.wikipedia.org/wiki/Tree_rotation
+
+   OLD_ROOT will be pushed down, and NEW_ROOT lifted up. Pass a reference
+   the the parent's link to OLD_ROOT so that we can update it.  */
 /* ### inline this  */
 static void
-rotate_right(struct pc_memtree_s *pivot, struct pc_memtree_s **root)
+rotate_right(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 {
-    (*root)->smaller = pivot->larger;
-    pivot->larger = *root;
-    *root = pivot;
+    (*old_root)->smaller = new_root->larger;
+    new_root->larger = *old_root;
+    *old_root = new_root;
+}
+
+
+/* Find the link in the parent of NODE which refers to NODE. This may be
+   the ROOT of the tree.
+
+   Note that we could look up NODE from the array, but the caller has
+   already done that. Pushing that value might cost about the same as
+   looking it up, but if this function gets inlined, then the push cost
+   is obviated.
+
+   NOTE: we depend upon this behavior when we remove TARGET from the tree
+   during deletion. It's parent has a stale link, so we need to look for
+   the stale value, rather than what is at parents[depth].
+
+   NOTE: we also depend upon this behavior sometimes to look for the
+   SIBLING rather than the target of the operation.  */
+/* ### inline this  */
+static struct pc_memtree_s **
+get_reference(struct pc_memtree_s *parents[],
+              int depth,
+              const struct pc_memtree_s *node,
+              struct pc_memtree_s **root)
+{
+    struct pc_memtree_s *parent;
+
+    parent = MT_PARENT(parents, depth);
+    if (parent == NULL)
+        return root;
+    if (parent->smaller == node)
+        return &parent->smaller;
+    return &parent->larger;
 }
 
 
@@ -268,12 +306,12 @@ pc__memtree_insert(struct pc_memtree_s **root,
            to put the tree back into shape.  */
         if (node == parent->larger && parent == gramps->smaller)
         {
-            rotate_left(parent, &gramps->smaller);
+            rotate_left(node, &gramps->smaller);
             new_node = parent;
         }
         else if (node == parent->smaller && parent == gramps->larger)
         {
-            rotate_right(parent, &gramps->larger);
+            rotate_right(node, &gramps->larger);
             new_node = parent;
         }
 
@@ -299,30 +337,343 @@ pc__memtree_insert(struct pc_memtree_s **root,
     MT_MAKE_BLACK(parent);
     MT_MAKE_RED(gramps);
 
-    /* Note: if GRAMPS is not ROOT, then it must have a parent. Thus,
-       parents[depth-3] is valid.  */
-    if (gramps == *root)
-    {
-        rotation_parent = root;
-    }
-    else if (parents[depth-3]->smaller == gramps)
-    {
-        rotation_parent = &parents[depth-3]->smaller;
-    }
-    else
-    {
-        rotation_parent = &parents[depth-3]->larger;
-    }
+    /* Get a reference to whatever is pointing at GRAMPS so that we can
+       update it to point to PARENT as it gets rotated upwards.  */
+    rotation_parent = get_reference(parents, depth - 2, gramps, root);
 
     /* Rotate PARENT (BLACK) up into GRAMP's position, pushing the
        GRAMPS node down.  */
     if (node == parent->smaller && parent == gramps->smaller)
     {
-        rotate_right(gramps, rotation_parent);
+        rotate_right(parent, rotation_parent);
     }
     else
     {
         /* node == parent->larger && parent == gramps->larger  */
-        rotate_left(gramps, rotation_parent);
+        rotate_left(parent, rotation_parent);
     }
+}
+
+
+struct pc_block_s *
+pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
+{
+    struct pc_memtree_s *parents[MT_DEPTH];
+    int depth;
+    int larger_depth;
+    struct pc_memtree_s *scan;
+    struct pc_memtree_s *target;
+    struct pc_memtree_s *child;
+    struct pc_memtree_s *parent;
+    struct pc_memtree_s *sibling;
+    struct pc_memtree_s *parent_referral;
+    struct pc_memtree_s **rotation_parent;
+
+    /* We have no nodes that will fit the requested size.  */
+    if (*root == NULL)
+        return NULL;
+
+    /* We need to scan the tree to find the node which is *larger* than
+       or equal to SIZE, but is as close to it as possible.
+
+       If a given node is larger than SIZE, then we *may* find a node
+       closer to SIZE on its SMALLER branch. Of course, all those nodes
+       may be smaller than SIZE.
+
+       If a given node is smaller than SIZE, then we *may* find a node
+       closer to SIZE on its LARGER branch. Again, we may never reach
+       a node that is larger than SIZE.
+
+       Each move down the tree, choosing one of the branches will scan
+       over nodes that get progressively closer to SIZE. We want to
+       remember the one that was equal or larger.
+
+       When we reach bottom, that node is the PREDECESSOR of our desired
+       node. We will (effectively) move it "up" to take the place of the
+       target node, and then run the deletion operation on that bottom
+       node.  */
+
+    depth = 0;
+    larger_depth = -1;
+    scan = *root;
+
+    /* We'll hit the bottom of the tree at some point, so no conditional
+       is needed on this scanning loop.  */
+    while (TRUE)
+    {
+        /* Remember this for when we need parental information, since the
+           nodes don't track it themselves.  */
+        parents[depth] = scan;
+
+        if (size <= scan->b.size)
+        {
+            larger_depth = depth;
+
+            /* If there are no smaller nodes (closer to SIZE), we're done.
+               Even if this node is *equal* to SIZE, we still continue the
+               scsan since we're looking for the predecessor node.  */
+            if (scan->smaller == NULL)
+                break;
+
+            /* Scan down the smaller-sized branch.  */
+            scan = scan->smaller;
+        }
+        else
+        {
+            /* If there are no larger nodes (closer to SIZE), we're done.  */
+            if (scan->larger == NULL)
+                break;
+
+            /* Scan down the larger-sized branch.  */
+            scan = scan->larger;
+        }
+
+        /* We're moving deeper.  */
+        ++depth;
+    }
+
+    /* We never saw a node with a sufficient size. Ah well.  */
+    if (larger_depth == -1)
+        return NULL;
+
+    /* If SCAN has sufficient size, then it is the target of our operation.
+       It will provide the needed memory, and may be deleted.
+
+       Otherwise, the node at LARGER_DEPTH is the closest to SIZE and will
+       be our target.  */
+    if (size <= scan->b.size)
+        target = scan;
+    else
+        target = parents[larger_depth];
+
+    /* If there are extra blocks hanging off this node, then we simply
+       unlink one and return it. No further tree manipulations are needed.  */
+    if (target->b.next != NULL)
+    {
+        struct pc_block_s *result = target->b.next;
+
+        target->b.next = result->next;
+        result->next = NULL;
+        return result;
+    }
+    /* We need to return this node as the block. Remove it from the tree.  */
+
+    /* TARGET is what we want to delete from the tree.
+       SCAN is its predecessor.  */
+
+    /* This algorithm comes right off the Wikipedia article.  */
+
+    /* If TARGET has two children, then we need to "swap" it with SCAN
+       since the algorithm requires, at most, one child. We know that
+       SCAN has no more than one child, since it terminated the search
+       with a NULL link.  */
+    if (target->smaller != NULL && target->larger != NULL)
+    {
+        /* The parent should point to SCAN now, not TARGET.  */
+        *get_reference(parents, larger_depth, target, root) = scan;
+
+        /* Remember the at-most one child (may be NULL) of the predecessor.  */
+        child = scan->smaller ? scan->smaller : scan->larger;
+
+        /* We need to be careful if TARGET is the parent of SCAN.  */
+        if (larger_depth == depth - 1)
+        {
+            if (target->smaller == scan)
+            {
+                scan->smaller = target;
+                scan->larger = target->larger;
+            }
+            else
+            {
+                scan->smaller = target->smaller;
+                scan->larger = target;
+            }
+        }
+        else
+        {
+            /* Copy over the links.  */
+            scan->smaller = target->smaller;
+            scan->larger = target->larger;
+        }
+
+        /* Adjust the set of remembered parents.  */
+        parents[larger_depth] = scan;
+        parents[depth] = target;
+
+        /* TARGET's parent will refer to SCAN. We could update it to point
+           to TARGET here (thus, putting TARGET back into the tree), but
+           we are just about to remove TARGET from the tree. So we just
+           use PARENT_REFERRAL to figure out which link to modify.  */
+        parent_referral = scan;
+    }
+    else
+    {
+        if (target->smaller != NULL)
+            child = target->smaller;
+        else
+            child = target->larger;
+
+        /* TARGET's parent will refer to TARGET.  */
+        parent_referral = target;
+    }
+
+    /* replace_node()  */
+    /* TARGET has, at most, one child. We move that child up to TARGET's
+       location in the tree.  */
+    *get_reference(parents, depth, parent_referral, root) = child;
+
+    /* Update the set of PARENTS to reflect CHILD moving up a level.  */
+    parents[depth] = child;
+
+    /* delete_one_child()  */
+    if (MT_IS_RED(target))
+    {
+        /* Fix up TARGET's size, so we don't return something slightly off
+           because it was marked RED.  */
+        MT_MAKE_BLACK(target);
+        return &target->b;
+    }
+    if (child != NULL && MT_IS_RED(child))
+    {
+        MT_MAKE_BLACK(child);
+        return &target->b;
+    }
+    /* We are now "deleting" (fixing tree state of) the CHILD node. At this
+       point, we know that CHILD is BLACK (or NULL, which implies BLACK).  */
+
+    /* delete_case1()  */
+  delete_case1:
+    if (depth == 0)
+        return &target->b;
+
+    /* delete_case2()  */
+    parent = MT_PARENT(parents, depth);
+    if (parent->smaller == child)
+        sibling = parent->larger;
+    else
+        sibling = parent->smaller;
+    /* TARGET and CHILD were BLACK. Thus, SIBLING's side of PARENT must
+       have two BLACK's, which is impossible if SIBLING is NULL. Note that
+       this also holds true if we restarted case1 from the 'goto' below.  */
+    /* ### PC_DEBUG stuff instead?  */
+    assert(sibling != NULL);
+
+    if (MT_IS_RED(sibling))
+    {
+        struct pc_memtree_s *new_sibling;
+
+        MT_MAKE_RED(parent);
+        MT_MAKE_BLACK(sibling);
+
+        rotation_parent = get_reference(parents, depth - 1, parent, root);
+        if (parent->smaller == child)
+        {
+            rotate_left(sibling, rotation_parent);
+            new_sibling = sibling->smaller;
+        }
+        else
+        {
+            rotate_right(sibling, rotation_parent);
+            new_sibling = sibling->larger;
+        }
+
+        /* CHILD was moved further down the tree.  */
+        parents[depth - 1] = sibling;
+        parents[depth] = parent;
+        parents[++depth] = child;
+
+        parent = sibling;
+        sibling = new_sibling;
+
+        /* We can skip delete_case3() because PARENT is now RED.  */
+        goto delete_case4;
+    }
+
+    /* delete_case3()  */
+    if (MT_IS_BLACK(parent)
+        && MT_IS_BLACK(sibling)
+        && MT_IS_BLACK(sibling->smaller)
+        && MT_IS_BLACK(sibling->larger))
+    {
+        MT_MAKE_RED(sibling);
+
+        /* Rebalance starting at PARENT.
+
+           Note in delete_case2(), we talk about TARGET and CHILD both
+           being black, thus assuring SIBLING will exist. At this point,
+           both CHILD and PARENT are black (2 blacks), so as we move up,
+           the new sibling must also provide 2 blacks.  */
+        child = parent;
+        --depth;
+        goto delete_case1;
+    }
+
+    /* delete_case4()  */
+  delete_case4:
+    if (MT_IS_RED(parent)
+        && MT_IS_BLACK(sibling)
+        && MT_IS_BLACK(sibling->smaller)
+        && MT_IS_BLACK(sibling->larger))
+    {
+        MT_MAKE_RED(sibling);
+        MT_MAKE_BLACK(parent);
+
+        return &target->b;
+    }
+
+    /* delete_case5()  */
+    if (MT_IS_BLACK(sibling))
+    {
+        rotation_parent = get_reference(parents, depth, sibling, root);
+
+        if (parent->smaller == child
+            && MT_IS_BLACK(sibling->larger)
+            && MT_IS_RED(sibling->smaller))
+        {
+            MT_MAKE_RED(sibling);
+            MT_MAKE_BLACK(sibling->smaller);
+
+            rotate_right(sibling->smaller, rotation_parent);
+            sibling = sibling->smaller;
+        }
+        else if (parent->larger == child
+                 && MT_IS_BLACK(sibling->smaller)
+                 && MT_IS_RED(sibling->larger))
+        {
+            MT_MAKE_RED(sibling);
+            MT_MAKE_BLACK(sibling->larger);
+
+            rotate_left(sibling->larger, rotation_parent);
+            sibling = sibling->larger;
+        }
+
+        /* PARENT and PARENTS remain the same. SIBLING has been updated.  */
+    }
+
+    /* delete_case6()  */
+    if (MT_IS_BLACK(parent))
+    {
+        MT_MAKE_BLACK(sibling);
+    }
+    else
+    {
+        MT_MAKE_RED(sibling);
+        MT_MAKE_BLACK(parent);
+    }
+    rotation_parent = get_reference(parents, depth - 1, parent, root);
+    if (parent->smaller == child)
+    {
+        MT_MAKE_BLACK(sibling->larger);
+        rotate_left(sibling, rotation_parent);
+    }
+    else
+    {
+        MT_MAKE_BLACK(sibling->smaller);
+        rotate_right(sibling, rotation_parent);
+    }
+
+    /* No need to update PARENT, SIBLING, PARENTS after the above rotations
+       since we now exit.  */
+
+    return &target->b;
 }
