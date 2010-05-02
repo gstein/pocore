@@ -56,6 +56,8 @@
 #define MT_IS_BLACK(m)  (((m)->b.size & 1) == 0)
 #define MT_IS_RED(m)  (((m)->b.size & 1) == 1)
 
+#define MT_IS_BLACK_NULL(m)  ((m) == NULL || ((m)->b.size & 1) == 0)
+
 #define MT_MAKE_BLACK(m)  ((m)->b.size &= ~1)
 #define MT_MAKE_RED(m)  ((m)->b.size |= 1)
 
@@ -543,6 +545,9 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
 
     /* delete_case1()  */
   delete_case1:
+    /* CHILD has a one-fewer BLACK path through it. We need to rebalance
+       to account for this now-missing BLACK.  */
+
     if (depth == 0)
         return &target->b;
 
@@ -552,6 +557,7 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
         sibling = parent->larger;
     else
         sibling = parent->smaller;
+
     /* TARGET and CHILD were BLACK. Thus, SIBLING's side of PARENT must
        have two BLACK's, which is impossible if SIBLING is NULL. Note that
        this also holds true if we restarted case1 from the 'goto' below.  */
@@ -562,6 +568,7 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
     {
         struct pc_memtree_s *new_sibling;
 
+        /* Since SIBLING was RED, then PARENT must be BLACK.  */
         MT_MAKE_RED(parent);
         MT_MAKE_BLACK(sibling);
 
@@ -582,8 +589,16 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
         parents[depth] = parent;
         parents[++depth] = child;
 
-        parent = sibling;
+        /* We have the same parent, but a new sibling.  */
         sibling = new_sibling;
+
+        /* PARENT, TARGET, and CHILD were all BLACK. Thus, each path through
+           SIBLING must contain (at least) 3 BLACK nodes. That would be
+           PARENT, one child oF SIBLING (such as NEW_SIBLING), and one
+           grandchild of SIBLING. For a grandchild to exist, the child can
+           not be NULL.  */
+        /* ### PC_DEBUG?  */
+        assert(sibling != NULL);
 
         /* We can skip delete_case3() because PARENT is now RED.  */
         goto delete_case4;
@@ -592,8 +607,8 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
     /* delete_case3()  */
     if (MT_IS_BLACK(parent)
         && MT_IS_BLACK(sibling)
-        && MT_IS_BLACK(sibling->smaller)
-        && MT_IS_BLACK(sibling->larger))
+        && MT_IS_BLACK_NULL(sibling->smaller)
+        && MT_IS_BLACK_NULL(sibling->larger))
     {
         MT_MAKE_RED(sibling);
 
@@ -602,7 +617,8 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
            Note in delete_case2(), we talk about TARGET and CHILD both
            being black, thus assuring SIBLING will exist. At this point,
            both CHILD and PARENT are black (2 blacks), so as we move up,
-           the new sibling must also provide 2 blacks.  */
+           the new sibling must also provide 2 blacks; thus, it must not
+           be a leaf (NULL) node.  */
         child = parent;
         --depth;
         goto delete_case1;
@@ -610,10 +626,12 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
 
     /* delete_case4()  */
   delete_case4:
+    /* We know that SIBLING is not NULL.  */
+
     if (MT_IS_RED(parent)
         && MT_IS_BLACK(sibling)
-        && MT_IS_BLACK(sibling->smaller)
-        && MT_IS_BLACK(sibling->larger))
+        && MT_IS_BLACK_NULL(sibling->smaller)
+        && MT_IS_BLACK_NULL(sibling->larger))
     {
         MT_MAKE_RED(sibling);
         MT_MAKE_BLACK(parent);
@@ -622,14 +640,20 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
     }
 
     /* delete_case5()  */
-    if (MT_IS_BLACK(sibling))
+    /* This is BLACK because we have one or two RED children (see below).  */
+    assert(MT_IS_BLACK(sibling));
     {
         rotation_parent = get_reference(parents, depth, sibling, root);
 
+        /* case3 (BLACK PARENT) and case4 (RED PARENT) eliminated the
+           BLACK/BLACK children cases. Thus, if we have reached case5,
+           then we have RED/BLACK, BLACK/RED, or RED/RED children.  */
         if (parent->smaller == child
-            && MT_IS_BLACK(sibling->larger)
-            && MT_IS_RED(sibling->smaller))
+            && MT_IS_BLACK_NULL(sibling->larger))
         {
+            /* RED/BLACK  */
+            assert(MT_IS_RED(sibling->smaller));
+
             MT_MAKE_RED(sibling);
             MT_MAKE_BLACK(sibling->smaller);
 
@@ -637,9 +661,11 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
             sibling = sibling->smaller;
         }
         else if (parent->larger == child
-                 && MT_IS_BLACK(sibling->smaller)
-                 && MT_IS_RED(sibling->larger))
+                 && MT_IS_BLACK_NULL(sibling->smaller))
         {
+            /* BLACK/RED  */
+            assert(MT_IS_RED(sibling->larger));
+
             MT_MAKE_RED(sibling);
             MT_MAKE_BLACK(sibling->larger);
 
@@ -647,8 +673,20 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
             sibling = sibling->larger;
         }
 
-        /* PARENT and PARENTS remain the same. SIBLING has been updated.  */
+        /* PARENT and PARENTS remain the same. SIBLING may have been updated.
+
+           Since the (new) SIBLING was RED, then it could not have been
+           a NULL node.
+
+           If no rotation has occurred, then SIBLING is the same as before,
+           which we know is not-NULL.  */
+        /* ### PC_DEBUG?  */
+        assert(sibling != NULL);
     }
+
+    /* One of SIBLING's children is RED (we no longer care about the other
+       child's color), and has been moved to the "correct" child to prepare
+       for case6.  */
 
     /* delete_case6()  */
     if (MT_IS_BLACK(parent))
