@@ -64,8 +64,12 @@ void pc_pool_destroy(pc_pool_t *pool);
 
 pc_post_t *pc_post_create(pc_pool_t *pool);
 
-/* Any tracked owners (established since the POST) will be cleaned up.  */
-void pc_pool_reset_to(pc_post_t *post);
+/* Reset the POST's associated pool back to the state when POST was set.
+   All memory will be returned to the pool. Later posts are also reset,
+   then forgotten.
+
+   Any tracked owners (established since the POST) will be cleaned up.  */
+void pc_post_recall(pc_post_t *post);
 
 void pc_pool_clear(pc_pool_t *pool);
 

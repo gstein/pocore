@@ -213,7 +213,7 @@ void return_blocks(pc_context_t *ctx, struct pc_block_s *blocks)
 }
 
 
-void pc_pool_reset_to(pc_post_t *post)
+void pc_post_recall(pc_post_t *post)
 {
     pc_pool_t *pool = post->owner;
     pc_post_t *cur = pool->current_post;
@@ -268,7 +268,7 @@ void pc_pool_clear(pc_pool_t *pool)
 {
     POOL_USABLE(pool);
 
-    pc_pool_reset_to(&pool->first_post);
+    pc_post_recall(&pool->first_post);
 }
 
 
