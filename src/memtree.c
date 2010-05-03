@@ -35,6 +35,9 @@
   the red-black tree algorithm).
 */
 
+#include <assert.h>
+#include <stdio.h>
+
 #include "pc_types.h"
 
 #include "pocore.h"
@@ -71,7 +74,7 @@ get_uncle(struct pc_memtree_s *parents[], int depth)
     /* ### there is one call-site, and GRAMPS is not NULL.  */
     if (gramps == NULL)
         return NULL;
-    if (MT_PARENT(parents, depth-1) == gramps->smaller)
+    if (MT_PARENT(parents, depth) == gramps->smaller)
         return gramps->larger;
     return gramps->smaller;
 }
@@ -189,7 +192,7 @@ pc__memtree_insert(struct pc_memtree_s **root,
            nodes don't track it themselves.  */
         parents[depth] = scan;
 
-        if (scan->b.size == size)
+        if (MT_SIZE(scan) == size)
         {
             /* Woo hoo! Easy out. No tree manipulations needed since we found
                a node with the same size. We can simply turn this memory into
@@ -247,6 +250,9 @@ pc__memtree_insert(struct pc_memtree_s **root,
     node->smaller = NULL;
     node->larger = NULL;
 
+    /* NODE is one level below SCAN.  */
+    ++depth;
+
     /* Now that we've inserted the node into the tree, it is time to adjust
        the tree back into its Proper State (ie. meet all 5 properties).  */
 
@@ -293,6 +299,7 @@ pc__memtree_insert(struct pc_memtree_s **root,
             /* If the above condition of insert_case1() does not fire, then
                we move on to insert_case2(), from the grandparent. We can
                only perform O(log n) jumps back up the tree.  */
+            node = gramps;
             depth -= 2;
             goto insert_case2;
         }
@@ -368,8 +375,8 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
     struct pc_memtree_s *child;
     struct pc_memtree_s *parent;
     struct pc_memtree_s *sibling;
-    struct pc_memtree_s *parent_referral;
     struct pc_memtree_s **rotation_parent;
+    pc_bool_t target_is_red;
 
     /* We have no nodes that will fit the requested size.  */
     if (*root == NULL)
@@ -471,6 +478,16 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
        with a NULL link.  */
     if (target->smaller != NULL && target->larger != NULL)
     {
+        int target_color_flag = MT_IS_RED(target);
+
+        /* We are swapping data between TARGET and SCAN, but NOT the color.
+           Get the appropriate color for the TARGET of deletion.  */
+        target_is_red = MT_IS_RED(scan);
+
+        /* SCAN will be at the old TARGET's position, and should assume its
+           color.  */
+        scan->b.size = MT_SIZE(scan) | target_color_flag;
+
         /* The parent should point to SCAN now, not TARGET.  */
         *get_reference(parents, larger_depth, target, root) = scan;
 
@@ -482,13 +499,13 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
         {
             if (target->smaller == scan)
             {
-                scan->smaller = target;
+                scan->smaller = child;
                 scan->larger = target->larger;
             }
             else
             {
                 scan->smaller = target->smaller;
-                scan->larger = target;
+                scan->larger = child;
             }
         }
         else
@@ -496,43 +513,47 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
             /* Copy over the links.  */
             scan->smaller = target->smaller;
             scan->larger = target->larger;
+
+            /* The parent that was referring to SCAN should now reference
+               the CHILD node.  */
+            *get_reference(parents, depth, scan, root) = child;
         }
 
         /* Adjust the set of remembered parents.  */
         parents[larger_depth] = scan;
-        parents[depth] = target;
-
-        /* TARGET's parent will refer to SCAN. We could update it to point
-           to TARGET here (thus, putting TARGET back into the tree), but
-           we are just about to remove TARGET from the tree. So we just
-           use PARENT_REFERRAL to figure out which link to modify.  */
-        parent_referral = scan;
     }
     else
     {
+        /* What color is TARGET?  */
+        target_is_red = MT_IS_RED(target);
+
         if (target->smaller != NULL)
             child = target->smaller;
         else
             child = target->larger;
 
-        /* TARGET's parent will refer to TARGET.  */
-        parent_referral = target;
-    }
+        /* If the target is not SCAN, then it is somewhere higher in the
+           tree. Reset the depth.  */
+        if (target != scan)
+            depth = larger_depth;
 
-    /* replace_node()  */
-    /* TARGET has, at most, one child. We move that child up to TARGET's
-       location in the tree.  */
-    *get_reference(parents, depth, parent_referral, root) = child;
+        /* The parent that was referring to TARGET should now refer
+           to CHILD.  */
+        *get_reference(parents, depth, target, root) = child;
+    }
 
     /* Update the set of PARENTS to reflect CHILD moving up a level.  */
     parents[depth] = child;
 
+    /* Fix up TARGET's size, so we don't return something slightly off
+       because it was marked RED.  */
+    MT_MAKE_BLACK(target);
+
     /* delete_one_child()  */
-    if (MT_IS_RED(target))
+    if (target_is_red)
     {
-        /* Fix up TARGET's size, so we don't return something slightly off
-           because it was marked RED.  */
-        MT_MAKE_BLACK(target);
+        /* The node we're removing is marked RED. This could be somewhere
+           up in the tree, or way down as a leaf.  */
         return &target->b;
     }
     if (child != NULL && MT_IS_RED(child))
@@ -575,13 +596,13 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
         rotation_parent = get_reference(parents, depth - 1, parent, root);
         if (parent->smaller == child)
         {
-            rotate_left(sibling, rotation_parent);
             new_sibling = sibling->smaller;
+            rotate_left(sibling, rotation_parent);
         }
         else
         {
-            rotate_right(sibling, rotation_parent);
             new_sibling = sibling->larger;
+            rotate_right(sibling, rotation_parent);
         }
 
         /* CHILD was moved further down the tree.  */
@@ -651,26 +672,30 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
         if (parent->smaller == child
             && MT_IS_BLACK_NULL(sibling->larger))
         {
+            struct pc_memtree_s *new_sibling = sibling->smaller;
+
             /* RED/BLACK  */
-            assert(MT_IS_RED(sibling->smaller));
+            assert(MT_IS_RED(new_sibling));
 
             MT_MAKE_RED(sibling);
-            MT_MAKE_BLACK(sibling->smaller);
+            MT_MAKE_BLACK(new_sibling);
 
-            rotate_right(sibling->smaller, rotation_parent);
-            sibling = sibling->smaller;
+            rotate_right(new_sibling, rotation_parent);
+            sibling = new_sibling;
         }
         else if (parent->larger == child
                  && MT_IS_BLACK_NULL(sibling->smaller))
         {
+            struct pc_memtree_s *new_sibling = sibling->larger;
+
             /* BLACK/RED  */
-            assert(MT_IS_RED(sibling->larger));
+            assert(MT_IS_RED(new_sibling));
 
             MT_MAKE_RED(sibling);
-            MT_MAKE_BLACK(sibling->larger);
+            MT_MAKE_BLACK(new_sibling);
 
-            rotate_left(sibling->larger, rotation_parent);
-            sibling = sibling->larger;
+            rotate_left(new_sibling, rotation_parent);
+            sibling = new_sibling;
         }
 
         /* PARENT and PARENTS remain the same. SIBLING may have been updated.
@@ -715,3 +740,101 @@ pc__memtree_fetch(struct pc_memtree_s **root, size_t size)
 
     return &target->b;
 }
+
+
+#ifdef PC_DEBUG
+
+/* Return the BLACK depth of ROOT. For this function, a NULL node is
+   considered to be BLACK (thus, validating property 3 -- all leaves are
+   BLACK). Thus, an empty tree has depth 1, and a tree with a single
+   node is depth 2.
+
+   This function also validates property 4 (children of every RED node
+   is BLACK), and property 5 (all paths have the same BLACK depth).
+
+   Property 1 (all nodes are RED or BLACK) is implied by the implementation,
+   so it cannot be "validated".
+
+   Property 2 (the root is BLACK) is not validated. The recursive nature
+   of this function cannot determine whether it is looking at the root
+   of the tree. In practice, the root does not have to be BLACK since a
+   simple recoloring will not affect any of the properties/invariants.  */
+int
+pc__memtree_depth(const struct pc_memtree_s *node)
+{
+    int depth;
+
+    if (node == NULL)
+        return 1;
+
+    if (MT_IS_RED(node))
+    {
+        if (node->smaller == NULL)
+        {
+            assert(node->larger == NULL);
+            return 1;
+        }
+        assert(node->larger != NULL);
+
+        assert(MT_IS_BLACK(node->smaller));
+        assert(MT_IS_BLACK(node->larger));
+
+        depth = pc__memtree_depth(node->smaller);
+        assert(pc__memtree_depth(node->larger) == depth);
+        return depth;
+    }
+
+    if (node->smaller == NULL)
+    {
+        if (node->larger != NULL)
+            assert(pc__memtree_depth(node->larger) == 1);
+        return 2;
+    }
+    if (node->larger == NULL)
+    {
+        assert(pc__memtree_depth(node->smaller) == 1);
+        return 2;
+    }
+
+    depth = pc__memtree_depth(node->smaller);
+    assert(pc__memtree_depth(node->larger) == depth);
+    return depth + 1;
+}
+
+
+#define MT_COLOR(n) (MT_IS_BLACK(n) ? "BLACK" : "RED")
+
+static void
+print_node(const struct pc_memtree_s *node, int depth)
+{
+    int i;
+
+    /* Whoops.  */
+    if (depth >= MT_DEPTH)
+    {
+        printf("=== LOOP DETECTED\n");
+        return;
+    }
+
+    for (i = depth; i--; )
+        printf(". ");
+
+    if (node == NULL)
+    {
+        printf("null\n");
+        return;
+    }
+    printf("%s:%d\n", MT_COLOR(node), MT_SIZE(node));
+
+    print_node(node->smaller, ++depth);
+    print_node(node->larger, depth);
+}
+
+
+void
+pc__memtree_print(const struct pc_memtree_s *root)
+{
+    print_node(root, 0);
+}
+
+#endif /* PC_DEBUG  */

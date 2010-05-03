@@ -200,6 +200,22 @@ pc__memtree_insert(struct pc_memtree_s **root,
                    void *mem,
                    size_t size);
 
+
+/* ### docco  */
+struct pc_block_s *
+pc__memtree_fetch(struct pc_memtree_s **root, size_t size);
+
+
+#ifdef PC_DEBUG
+
+int
+pc__memtree_depth(const struct pc_memtree_s *node);
+
+void
+pc__memtree_print(const struct pc_memtree_s *root);
+
+#endif /* PC_DEBUG  */
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
