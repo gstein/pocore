@@ -29,10 +29,21 @@
 #include "pocore.h"
 
 
-pc_context_t *pc_context_create(size_t stdsize,
-                                int (*oom_handler)(size_t amt))
+pc_context_t *pc_context_create(void)
+{
+    return pc_context_create_custom(0, NULL);
+}
+
+
+pc_context_t *pc_context_create_custom(size_t stdsize,
+                                       int (*oom_handler)(size_t amt))
 {
     pc_context_t *ctx = malloc(sizeof(*ctx));
+
+    if (stdsize == PC_DEFAULT_STDSIZE)
+        stdsize = PC_MEMBLOCK_SIZE;
+    else if (stdsize < PC_MEMBLOCK_MINIMUM)
+        stdsize = PC_MEMBLOCK_MINIMUM;
 
     memset(ctx, 0, sizeof(*ctx));
 

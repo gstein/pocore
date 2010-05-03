@@ -36,8 +36,10 @@ typedef struct pc_context_s pc_context_t;
 
 #define PC_DEFAULT_STDSIZE 0
 
-pc_context_t *pc_context_create(size_t stdsize,
-                                int (*oom_handler)(size_t amt));
+pc_context_t *pc_context_create(void);
+
+pc_context_t *pc_context_create_custom(size_t stdsize,
+                                       int (*oom_handler)(size_t amt));
 
 void pc_context_destroy(pc_context_t *ctx);
 

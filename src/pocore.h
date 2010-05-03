@@ -43,6 +43,14 @@ extern "C" {
 #define PC_DEBUG
 #endif
 
+/* Default and minimum standard block size.
+
+   ### the minimum size (256) is just a number. the real minimum is probably
+   ### sizeof(struct pc_memtree_s) with maybe some other padding. not sure
+   ### that we allow such a small block though.  */
+#define PC_MEMBLOCK_SIZE 8192
+#define PC_MEMBLOCK_MINIMUM 256
+
 
 struct pc_tracklist_s {
     struct pc_trackreg_s *reg;
