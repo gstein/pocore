@@ -33,7 +33,7 @@
 #define COUNT 1000
 #define ALLOC_SIZE 16384
 
-static void *mem[COUNT];
+static char *mem[COUNT];
 
 
 static void
@@ -56,7 +56,7 @@ exercise(void)
     /* Make sure all the pages are really mapped/page into memory.  */
     for (i = COUNT; i--; )
         for (j = 0; j < ALLOC_SIZE; j += 1000)
-            ((char *)mem[i])[j] = 0;
+            mem[i][j] = 0;
 }
 
 
@@ -72,6 +72,7 @@ malloc_test(void)
 
         for (i = COUNT; i--; )
             mem[i] = malloc(ALLOC_SIZE);
+        exercise();
         for (i = COUNT; i--; )
             free(mem[i]);
     }
@@ -92,8 +93,9 @@ mmap_test(void)
         int i;
         
         for (i = COUNT; i--; )
-            mem[i] = mmap(0, ALLOC_SIZE, PROT_READ|PROT_WRITE, MAP_ANON,
-                          -1, 0);
+            mem[i] = mmap(0, ALLOC_SIZE, PROT_READ|PROT_WRITE,
+                          MAP_ANON|MAP_PRIVATE, -1, 0);
+        exercise();
         for (i = COUNT; i--; )
             munmap(mem[i], ALLOC_SIZE);
     }
