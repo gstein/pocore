@@ -24,6 +24,8 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <errno.h>
+#include <sys/mman.h>
 
 #include "pc_types.h"
 #include "pc_memory.h"
@@ -74,18 +76,20 @@ struct pc_block_s *alloc_block(size_t size)
 
     /* ### should get a block from the context. for now: early bootstrap
        ### with a simple malloc.  */
-    block = malloc(size
-#ifdef PC_DEBUG
-                   + 4
+#if 1
+    block = malloc(size);
+#else
+    block = mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
+    if (block == (void *)-1)
+    {
+        int problem = errno;
+        abort();
+    }
 #endif
-        );
 
     block->size = size;
     block->next = NULL;
 
-#ifdef PC_DEBUG
-    *(pc_u32_t *)((char *)block + size) = 0x12345678;
-#endif
     return block;
 }
 
@@ -170,24 +174,15 @@ void cleanup_owners(struct pc_tracklist_s *owners)
 }
 
 
-void return_nonstd(struct pc_block_s *blocks)
+void return_nonstd(pc_context_t *ctx, struct pc_block_s *blocks)
 {
-    /* ### just throw them away for now. eventually, put them back into
-       ### the context.  */
+    /* Put all the blocks back into the context.  */
     while (blocks != NULL)
     {
         struct pc_block_s *next = blocks->next;
 
-        /* ### TODO: put it back into the context  */
+        pc__memtree_insert(&ctx->nonstd_blocks, blocks, blocks->size);
 
-#ifdef PC_DEBUG
-        /* ### simple guard against double-free  */
-        assert(blocks->size != 0);
-        assert(*(pc_u32_t *)((char *)blocks + blocks->size) == 0x12345678);
-        blocks->size = 0;
-#endif
-
-        free(blocks);
         blocks = next;
     }
 }
@@ -248,7 +243,7 @@ void pc_post_recall(pc_post_t *post)
         return_blocks(pool->ctx, cur->saved_block->next);
         cur->saved_block->next = NULL;
 
-        return_nonstd(cur->nonstd_blocks);
+        return_nonstd(pool->ctx, cur->nonstd_blocks);
         cur->nonstd_blocks = NULL;
 
         /* Remnants come only from blocks. Those blocks have been recovered,
@@ -360,6 +355,7 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
 
         result = (char *)block + sizeof(*block);
 
+        /* Append the new block to the end of the pool's chain of blocks.  */
         pool->current_block->next = block;
         pool->current_block = block;
 
@@ -369,14 +365,22 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
     }
 
     /* We need a non-standard-sized allocation.  */
+    {
+        size_t required = sizeof(*block) + amt;
+        struct pc_block_s *block;
 
-    /* ### get it from somewhere  */
-    block = alloc_block(sizeof(*block) + amt);
+        block = pc__memtree_fetch(&pool->ctx->nonstd_blocks, required);
+        if (block == NULL)
+            block = alloc_block(required);
 
-    block->next = pool->current_post->nonstd_blocks;
-    pool->current_post->nonstd_blocks = block;
+        block->next = pool->current_post->nonstd_blocks;
+        pool->current_post->nonstd_blocks = block;
 
-    return (char *)block + sizeof(*block);
+        /* ### TODO: the block pulled out of the tree may be larger than
+           ### we need. the extra should go into the REMNANTS tree.  */
+
+        return (char *)block + sizeof(*block);
+    }
 }
 
 

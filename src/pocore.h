@@ -86,10 +86,15 @@ struct pc_context_s {
     /* ### return values: try one more time. return NULL. abort.  */
     int (*oom_handler)(size_t amt);
 
+    /* When grabbing memory from the OS, what is the "standard size" to
+       grab each time?  */
     size_t stdsize;
+
+    /* A linked-list of available standard-sized blocks to use.  */
     struct pc_block_s *std_blocks;
 
-    /* ### use a bintree to do bestfit.  */
+    /* A tree of non-standard-sized blocks (ie. larger than STDSIZE). These
+       are available for use on a best-fit basis.  */
     struct pc_memtree_s *nonstd_blocks;
 
     /* ### chained hashes to prevent realloc? subpool for this?
