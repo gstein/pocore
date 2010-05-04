@@ -130,6 +130,12 @@ pc_array_t *pc_array_copy(const pc_array_t *ary, pc_pool_t *pool);
 
 void *pc_array_add(pc_array_t *ary);
 
+/* Delete element IDX from the array.
+
+   Note: this could be done as a macro using memmove(), but is implemented
+   as a function to avoid multiple evaluations of ARY and IDX.  */
+void pc_array_delete(pc_array_t *ary, int idx);
+
 #define PC_ARRAY_CLEAR(ary) ((ary)->count = 0)
 
 #define PC_ARRAY_COUNT(ary) ((ary)->count)
