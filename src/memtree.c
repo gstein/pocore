@@ -824,7 +824,7 @@ print_node(const struct pc_memtree_s *node, int depth)
         printf("null\n");
         return;
     }
-    printf("%s:%d\n", MT_COLOR(node), MT_SIZE(node));
+    printf("%s:%lu\n", MT_COLOR(node), (unsigned long)MT_SIZE(node));
 
     print_node(node->smaller, ++depth);
     print_node(node->larger, depth);
