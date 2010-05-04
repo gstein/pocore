@@ -33,21 +33,6 @@ extern "C" {
 #endif /* __cplusplus */
 
 
-/* Integer types when specific sizes are required.  */
-/* ### we'll need configure magic to pick up the right types  */
-typedef signed char pc_i8_t;
-typedef unsigned char pc_u8_t;
-
-typedef signed short pc_i16_t;
-typedef unsigned short pc_u16_t;
-
-typedef signed int pc_i32_t;
-typedef unsigned int pc_u32_t;
-
-typedef signed long long pc_i64_t;
-typedef unsigned long long pc_u64_t;
-
-
 /* The PoCore boolean type is a simple integer, used for self-documenting
    purposes.  */
 typedef int pc_bool_t;

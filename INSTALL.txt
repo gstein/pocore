@@ -1,0 +1,19 @@
+### todo...
+
+
+DEPENDENCIES
+
+PoCore generally wants a C99-compliant environment, but uses
+C89-compliant code (to support Microsoft compilers). Some specific
+issues are noted below:
+
+* stdint.h (C99 standard)
+
+If your platform doesn't have it, see the "External links" section on
+this page: http://en.wikipedia.org/wiki/Stdint.h
+
+### maybe we can just include a copy, for use when we can't find a
+### suitable copy?
+
+
+...

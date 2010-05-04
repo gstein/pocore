@@ -22,6 +22,7 @@
 */
 
 #include <string.h>
+#include <stdint.h>
 
 #include "pc_types.h"
 #include "pc_memory.h"
@@ -86,7 +87,7 @@ static const int slot_deleted;
 struct pc_hslot_s {
     const void *key;
     size_t klen;
-    pc_u32_t hvalue;
+    uint_fast32_t hvalue;
     void *value;
 };
 
@@ -109,13 +110,13 @@ struct pc_hiter_s {
 };
 
 
-static pc_u32_t
-compute_hvalue(const pc_u8_t *key, size_t klen)
+static uint_fast32_t
+compute_hvalue(const uint8_t *key, size_t klen)
 {
     /* FNV-1 for 32-bit hash values  */
 
-    const pc_u8_t *end = key + klen;
-    pc_u32_t hvalue = 0x811c9dc5;
+    const uint8_t *end = key + klen;
+    uint_fast32_t hvalue = 0x811c9dc5;
 
     while (key < end)
         hvalue = (hvalue * 16777619) ^ *key++;
@@ -124,16 +125,16 @@ compute_hvalue(const pc_u8_t *key, size_t klen)
 }
 
 
-static pc_u32_t
+static uint_fast32_t
 compute_str_hvalue(const char *key, size_t *klen)
 {
     /* FNV-1 for 32-bit hash values  */
 
     const char *start = key;
-    pc_u32_t hvalue = 0x811c9dc5;
+    uint_fast32_t hvalue = 0x811c9dc5;
 
     while (*key != '\0')
-        hvalue = (hvalue * 16777619) ^ (pc_u8_t)*key++;
+        hvalue = (hvalue * 16777619) ^ (uint8_t)*key++;
 
     *klen = key - start;
     return hvalue;
@@ -223,7 +224,7 @@ insert_item(const struct pc_hslot_s *item, struct pc_hslot_s *slots, int alloc)
 
 static void *
 find_value(const pc_hash_t *hash, const void *key, size_t klen,
-           pc_u32_t hvalue)
+           uint_fast32_t hvalue)
 {
     /* See insert_item() for a discussion of our probing strategy.  */
     int start = hvalue % hash->alloc;
@@ -360,7 +361,7 @@ pc_hash_t *pc_hash_copy(const pc_hash_t *hash, pc_pool_t *pool)
 
 void pc_hash_set(pc_hash_t *hash, const void *key, size_t klen, void *value)
 {
-    pc_u32_t hvalue = compute_hvalue(key, klen);
+    uint_fast32_t hvalue = compute_hvalue(key, klen);
     struct pc_hslot_s item = { key, klen, hvalue, value };
     pc_bool_t existed;
 
@@ -376,7 +377,7 @@ void pc_hash_set(pc_hash_t *hash, const void *key, size_t klen, void *value)
 void pc_hash_sets(pc_hash_t *hash, const char *key, void *value)
 {
     size_t klen;
-    pc_u32_t hvalue = compute_str_hvalue(key, &klen);
+    uint_fast32_t hvalue = compute_str_hvalue(key, &klen);
     struct pc_hslot_s item = { key, klen, hvalue, value };
     pc_bool_t existed;
 
@@ -391,7 +392,7 @@ void pc_hash_sets(pc_hash_t *hash, const char *key, void *value)
 
 void *pc_hash_get(const pc_hash_t *hash, const void *key, size_t klen)
 {
-    pc_u32_t hvalue = compute_hvalue(key, klen);
+    uint_fast32_t hvalue = compute_hvalue(key, klen);
 
     return find_value(hash, key, klen, hvalue);
 }
@@ -400,7 +401,7 @@ void *pc_hash_get(const pc_hash_t *hash, const void *key, size_t klen)
 void *pc_hash_gets(const pc_hash_t *hash, const char *key)
 {
     size_t klen;
-    pc_u32_t hvalue = compute_str_hvalue(key, &klen);
+    uint_fast32_t hvalue = compute_str_hvalue(key, &klen);
 
     return find_value(hash, key, klen, hvalue);
 }
