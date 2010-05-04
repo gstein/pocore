@@ -219,8 +219,6 @@ void pc_post_recall(pc_post_t *post)
        reach the desired post.  */
     while (TRUE)
     {
-        pc_pool_t *scan;
-
         /* While the pool is still intact, clean up all the owners that
            were established since we set the post.
 
@@ -230,10 +228,12 @@ void pc_post_recall(pc_post_t *post)
         cleanup_owners(cur->saved_owners);
         cur->saved_owners = NULL;
 
-        /* Destroy all the child pools since this post was set.  */
-        for (scan = cur->child; scan != NULL; scan = scan->sibling)
-            pc_pool_destroy(scan);
-        cur->child = NULL;
+        /* Destroy all the child pools since this post was set. Children
+           will remove themselves from this list as they are destroyed.
+           The removal should be fast since this is the current post and
+           the child will be at the head of this list.  */
+        while (cur->child != NULL)
+            pc_pool_destroy(cur->child);
 
         pool->current = cur->saved_current;
         pool->current_block = cur->saved_block;
@@ -405,11 +405,11 @@ char *pc_strmemdup(pc_pool_t *pool, const char *str, size_t len)
 char *pc_strndup(pc_pool_t *pool, const char *str, size_t amt)
 {
     const char *end = memchr(str, '\0', amt);
-    char *result;
 
     if (end != NULL)
         amt = end - str;
 
+    /* ### maybe use an inline helper instead?  */
     return pc_strmemdup(pool, str, amt);
 }
 
