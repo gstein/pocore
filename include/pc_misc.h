@@ -27,12 +27,12 @@
 /* ### is this always the correct header?  */
 #include <stdlib.h>  /* for size_t  */
 
+#include "pc_types.h"
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-typedef struct pc_context_s pc_context_t;
 
 #define PC_DEFAULT_STDSIZE 0
 

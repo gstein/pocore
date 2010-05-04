@@ -44,8 +44,9 @@ typedef int pc_bool_t;
 #endif
 
 
-/* Declare the pool type here, for use below.  */
+/* Declare some key typedefs used throughout the system.  */
 
+typedef struct pc_context_s pc_context_t;
 typedef struct pc_pool_s pc_pool_t;
 
 /* ### move all other incomplete-struct typedefs here?  */
