@@ -24,6 +24,8 @@
 #ifndef PC_TRACK_H
 #define PC_TRACK_H
 
+#include "pc_types.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,7 +33,7 @@ extern "C" {
 
 
 /* A cleanup function for a tracked item.  */
-void (*pc_cleanup_func_t)(void *tracked);
+typedef void (*pc_cleanup_func_t)(void *tracked);
 
 
 /* Register TRACKED in the dependency tracking registry as part of CTX.
@@ -51,8 +53,11 @@ void pc_track(pc_context_t *ctx,
 void pc_track_via(pc_pool_t *pool,
                   void *tracked, pc_cleanup_func_t cleanup);
 
+
 /* Remove TRACKED from the tracking registry. It should not have any owners,
    and it will be removed from all dependents' list of owners.
+
+   The cleanup will NOT be run.
 
    It is acceptable to deregister an item that is not being tracked.  */
 void pc_track_deregister(pc_context_t *ctx, void *tracked);
@@ -64,7 +69,8 @@ void pc_track_dependent(pc_context_t *ctx, void *owner, void *dependent);
 
 
 /* Run the cleanup for this particular tracked item, then de-register it.
-   This item should not have any owners.  */
+   This item should not have any owners. This operation is a no-op if the
+   item is not registered for tracking.  */
 void pc_track_cleanup(pc_context_t *ctx, void *tracked);
 
 

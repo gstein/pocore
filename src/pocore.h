@@ -53,7 +53,7 @@ extern "C" {
 
 
 struct pc_tracklist_s {
-    struct pc_trackreg_s *reg;
+    union pc_trackreg_u *reg;
     struct pc_tracklist_s *next;
 };
 
@@ -100,9 +100,18 @@ struct pc_context_s {
     /* ### chained hashes to prevent realloc? subpool for this?
        ### we'll probably have the hash code return memory to its pool,
        ### so a realloc will not be much of a problem.  */
-    pc_hash_t *ptr_to_track;
+    /* Map tracked pointers to registration structures. This hash is
+       created on-demand within TRACK_POOL (also created on-demand).  */
+    pc_hash_t *ptr_to_reg;
+
+    /* Free registration structures.  */
     union pc_trackreg_u *free_treg;
+
+    /* Free tracking list structures.  */
     struct pc_tracklist_s *free_tlist;
+
+    /* The pool to use for additional tracking allocations. This will be
+       created on-demand and owned by the context.  */
     struct pc_pool_s *track_pool;
 };
 
