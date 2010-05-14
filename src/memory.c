@@ -188,29 +188,10 @@ void return_nonstd(pc_context_t *ctx, struct pc_block_s *blocks)
 }
 
 
-void return_blocks(pc_context_t *ctx, struct pc_block_s *blocks)
-{
-    if (blocks != NULL)
-    {
-        struct pc_block_s *scan = blocks;
-
-        /* Scan to the last block in the chain.  */
-        /* ### a pointer to the tail in CTX or in POST could remove this
-           ### scan. WAIT... we DO have the tail. the last block is
-           ### pool->current_block. oooh.... */
-        while (scan->next != NULL)
-            scan = scan->next;
-
-        /* Insert the whole chain into the context.  */
-        scan->next = ctx->std_blocks;
-        ctx->std_blocks = blocks;
-    }
-}
-
-
 void pc_post_recall(pc_post_t *post)
 {
     pc_pool_t *pool = post->owner;
+    pc_context_t *ctx = pool->ctx;
     pc_post_t *cur = pool->current_post;
 
     POOL_USABLE(pool);
@@ -219,43 +200,103 @@ void pc_post_recall(pc_post_t *post)
        reach the desired post.  */
     while (TRUE)
     {
-        /* While the pool is still intact, clean up all the owners that
-           were established since we set the post.
+        /* NOTE: it is possible for cleanups to create an infinite loop.
 
-           NOTE: run these first, while the pool is still "unmodified". They
-           may need something from this pool (ie. something with a longer
-           lifetime which is sitting in this pool).  */
-        cleanup_owners(cur->saved_owners);
-        cur->saved_owners = NULL;
+           Possibility: the cleanup function registers other cleanup
+             functions which register more, etc, such that we can never
+             empty the set of owners of this pool.
 
-        /* Destroy all the child pools since this post was set. Children
-           will remove themselves from this list as they are destroyed.
-           The removal should be fast since this is the current post and
-           the child will be at the head of this list.  */
-        while (cur->child != NULL)
-            pc_pool_destroy(cur->child);
+           Possibility: cleanup functions on child pools register a
+             cleanup this parent pool, and the cleanup creates that
+             child pool and its cleanup, etc.
 
+           These are application problems that we will not attempt to
+           detect or counter.
+
+           That said, it *is* legal for cleanups to create child pools,
+           to add new cleanups, and for those pools to add cleanups or
+           create other child pools. As long as the sequence reaches a
+           steady-state of destruction.
+        */
+
+        do
+        {
+            /* While the pool is still intact, clean up all the owners that
+               were established since we set the post.
+
+               NOTE: run these first, while the pool is still "unmodified".
+               They may need something from this pool (ie. something with a
+               longer lifetime which is sitting in this pool).  */
+            cleanup_owners(cur->saved_owners);
+
+            /* It is (remotely) possible that child pool destruction will
+               save new owners against this parent pool. We need the set
+               of owners to be correct and ready for that eventuality.  */
+            cur->saved_owners = NULL;
+
+            /* Destroy all the child pools since this post was set. Children
+               will remove themselves from this list as they are destroyed.
+               The removal should be fast since this is the current post and
+               the child we are removing will be at the head of this list.
+
+               Note that cleanups may add subpools. Not a problem, as we
+               will torch them here.  */
+            while (cur->child != NULL)
+                pc_pool_destroy(cur->child);
+
+            /* If a child pool has set new owners against this pool, then
+               we need loop back to clean them up.  */
+        } while (cur->saved_owners != NULL);
+
+        /* If a block was allocated AFTER we established the post, then
+           return those blocks.  */
+        if (cur->saved_block->next != NULL)
+        {
+            /* Insert the whole chain into the context. HEAD is the block
+               allocated *after* the save point, and TAIL is the current
+               pool reference.  */
+            pool->current_block->next = ctx->std_blocks;
+            ctx->std_blocks = cur->saved_block->next;
+
+            /* Forget the newly-allocated blocks.  */
+            cur->saved_block->next = NULL;
+
+            /* The pool should back up to the block that was being used
+               when this post was set.  */
+            pool->current_block = cur->saved_block;
+        }
+
+        /* Return all the non-standard-sized blocks to the context.  */
+        return_nonstd(ctx, cur->nonstd_blocks);
+
+        /* Reset the pool's pointer to the original state. Future
+           iterations may need this, and final-state of the pool
+           definitely requires it.  */
         pool->current = cur->saved_current;
-        pool->current_block = cur->saved_block;
-
-        /* Return all blocks (std and nonstd) that were allocated since
-           we established the post.  */
-        return_blocks(pool->ctx, cur->saved_block->next);
-        cur->saved_block->next = NULL;
-
-        return_nonstd(pool->ctx, cur->nonstd_blocks);
-        cur->nonstd_blocks = NULL;
-
-        /* Remnants come only from blocks. Those blocks have been recovered,
-           so there are no remnants available for use.  */
-        cur->remnants = NULL;
 
         if (cur == post)
-            break;
-        cur = cur->prev;
-    }
+        {
+            /* Put this post back into a useful state.  */
 
-    pool->current_post = post;
+            /* This post no longer has associated non-standard-sized
+               blocks.  */
+            cur->nonstd_blocks = NULL;
+
+            /* Remnants come only from blocks. Those blocks have been
+               recovered, so there are no remnants available for use.  */
+            cur->remnants = NULL;
+
+            /* DONE!  */
+            return;
+        }
+
+        /* We are recalling to an earlier post.  */
+        cur = cur->prev;
+
+        /* Set up the current post for operations that may occur during
+           this recall process.  */
+        pool->current_post = cur;
+    }
 }
 
 
@@ -317,7 +358,9 @@ void pc_pool_destroy(pc_pool_t *pool)
 
     /* Return the last block (which also contains this pool) to
        the context.  */
-    return_blocks(pool->ctx, pool->current_block);
+    assert(pool->current_block->next == NULL);
+    pool->current_block->next = pool->ctx->std_blocks;
+    pool->ctx->std_blocks = pool->current_block;
 }
 
 
