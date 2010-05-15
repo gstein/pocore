@@ -113,6 +113,11 @@ struct pc_context_s {
     /* The pool to use for additional tracking allocations. This will be
        created on-demand and owned by the context.  */
     struct pc_pool_s *track_pool;
+
+    /* Pool to hold all errors associated with this context.  */
+    struct pc_pool_s *error_pool;
+
+    /* ### need mechanism to hook errors into this context.  */
 };
 
 
@@ -217,6 +222,9 @@ struct pc_memtree_s {
 
 
 struct pc_error_s {
+    /* Context this error is associated with.  */
+    pc_context_t *ctx;
+
     /* ### need some set of error codes for PoCore. redefining OS errors
        ### like APR is kind of a lost cause, I think. so this should
        ### probably just be a set of recognized, high-level errors. where

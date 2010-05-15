@@ -41,6 +41,9 @@ extern "C" {
 
 /* ### what to do with error->separate?  */
 
+#define PC_SUCCESS 0
+#define PC_ERR_TRACE  100  /* ### figure out numbering scheme  */
+
 
 /* Create an error object, associated with CTX.  */
 #define pc_error_create(ctx, code, msg) \
@@ -59,7 +62,7 @@ extern "C" {
 
 /* Add a stacktrace wrapper.  */
 #define pc_error_trace(original) \
-    pc__error_wrap_internal(PC_ERROR_TRACE, NULL, original, __FILE__, __LINE__)
+    pc__error_wrap_internal(PC_ERR_TRACE, NULL, original, __FILE__, __LINE__)
 
 
 /* Mark ERROR as handled, along with all of its associated and wrapped
@@ -68,7 +71,8 @@ void pc_error_handled(pc_error_t *error);
 
 
 /* Return ERROR's useful code value. Any tracing errors will be skipped until
-   a non-tracing error is located in the ORIGINAL chain.  */
+   a non-tracing error is located in the ORIGINAL chain. If there are no
+   errors (which should not happen), then PC_SUCCESS will be returned.  */
 int pc_error_code(const pc_error_t *error);
 
 
