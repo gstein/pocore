@@ -125,7 +125,7 @@ remove_from_list(pc_context_t *ctx,
 
 
 static union pc_trackreg_u *
-lookup_reg(pc_context_t *ctx, void *tracked)
+lookup_reg(pc_context_t *ctx, const void *tracked)
 {
     uintptr_t value;
 
@@ -138,7 +138,7 @@ lookup_reg(pc_context_t *ctx, void *tracked)
 
 
 void pc_track(pc_context_t *ctx,
-              void *tracked, pc_cleanup_func_t cleanup)
+              const void *tracked, pc_cleanup_func_t cleanup)
 {
     union pc_trackreg_u *reg;
 
@@ -165,13 +165,13 @@ void pc_track(pc_context_t *ctx,
 
 
 void pc_track_via(pc_pool_t *pool,
-                  void *tracked, pc_cleanup_func_t cleanup)
+                  const void *tracked, pc_cleanup_func_t cleanup)
 {
     pc_track(pool->ctx, tracked, cleanup);
 }
 
 
-void pc_track_deregister(pc_context_t *ctx, void *tracked)
+void pc_track_deregister(pc_context_t *ctx, const void *tracked)
 {
     union pc_trackreg_u *reg = lookup_reg(ctx, tracked);
     struct pc_tracklist_s *scan;
@@ -196,7 +196,9 @@ void pc_track_deregister(pc_context_t *ctx, void *tracked)
 }
 
 
-void pc_track_dependent(pc_context_t *ctx, void *owner, void *dependent)
+void pc_track_dependent(pc_context_t *ctx,
+                        const void *owner,
+                        const void *dependent)
 {
     union pc_trackreg_u *reg_owner;
     union pc_trackreg_u *reg_dep;
@@ -226,7 +228,7 @@ void pc_track_dependent(pc_context_t *ctx, void *owner, void *dependent)
 }
 
 
-void pc_track_cleanup(pc_context_t *ctx, void *tracked)
+void pc_track_cleanup(pc_context_t *ctx, const void *tracked)
 {
     union pc_trackreg_u *reg = lookup_reg(ctx, tracked);
 
@@ -240,8 +242,9 @@ void pc_track_cleanup(pc_context_t *ctx, void *tracked)
         abort();
     }
 
-    /* All good. Run the cleanup, then deregister this sucker.  */
-    (*reg->a.cleanup_func)(tracked);
+    /* All good. Run the cleanup, then deregister this sucker. Note that
+       we cast away the const to help the cleanup function.  */
+    (*reg->a.cleanup_func)((void *)tracked);
 
     /* ### switch this to an internal function. we can remove a number of
        ### redundant lookups/checks.  */
@@ -249,7 +252,7 @@ void pc_track_cleanup(pc_context_t *ctx, void *tracked)
 }
 
 
-void pc_track_cleanup_owners(void *tracked)
+void pc_track_cleanup_owners(const void *tracked)
 {
     /* ### probably not a public function. make private.  */
     abort();

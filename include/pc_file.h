@@ -54,16 +54,16 @@ void pc_file_destroy(pc_file_t *file);
 
 
 /* Register FILE in the tracking registry of CTX.  */
-void pc_file_track(pc_file_t *file, pc_context_t *ctx);
+void pc_file_track(const pc_file_t *file, pc_context_t *ctx);
 
 
 /* Register FILE in the tracking registry of the context implied by POOL.  */
-void pc_file_track_via(pc_file_t *file, pc_pool_t *pool);
+void pc_file_track_via(const pc_file_t *file, pc_pool_t *pool);
 
 
 /* Track FILE as an owner of POOL so that it will be closed when POOL
    is cleaned-up/destroyed.  */
-void pc_file_owns(pc_file_t *file, pc_pool_t *pool);
+void pc_file_owns(const pc_file_t *file, pc_pool_t *pool);
 
 
 #ifdef __cplusplus

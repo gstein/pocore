@@ -31,6 +31,12 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* NOTE: tracked pointers use the "const void *" type to denote that the
+   tracking system will not attempt to modify tracked items in any way.
+   However, it is likely the cleanup function may need to change the
+   contents of the tracked item, so the const is cast away when the cleanup
+   function is called.  */
+
 
 /* A cleanup function for a tracked item.  */
 typedef void (*pc_cleanup_func_t)(void *tracked);
@@ -45,13 +51,13 @@ typedef void (*pc_cleanup_func_t)(void *tracked);
 
    CLEANUP may not be NULL.  */
 void pc_track(pc_context_t *ctx,
-              void *tracked, pc_cleanup_func_t cleanup);
+              const void *tracked, pc_cleanup_func_t cleanup);
 
 
 /* Register TRACKED in the tracking registry of the context that POOL is
    part of.  */
 void pc_track_via(pc_pool_t *pool,
-                  void *tracked, pc_cleanup_func_t cleanup);
+                  const void *tracked, pc_cleanup_func_t cleanup);
 
 
 /* Remove TRACKED from the tracking registry. It should not have any owners,
@@ -60,22 +66,23 @@ void pc_track_via(pc_pool_t *pool,
    The cleanup will NOT be run.
 
    It is acceptable to deregister an item that is not being tracked.  */
-void pc_track_deregister(pc_context_t *ctx, void *tracked);
+void pc_track_deregister(pc_context_t *ctx, const void *tracked);
 
 
 /* Both OWNER and DEPENDENT must be registered within the tracking registry
    of context CTX.  */
-void pc_track_dependent(pc_context_t *ctx, void *owner, void *dependent);
+void pc_track_dependent(pc_context_t *ctx,
+                        const void *owner, const void *dependent);
 
 
 /* Run the cleanup for this particular tracked item, then de-register it.
    This item should not have any owners. This operation is a no-op if the
    item is not registered for tracking.  */
-void pc_track_cleanup(pc_context_t *ctx, void *tracked);
+void pc_track_cleanup(pc_context_t *ctx, const void *tracked);
 
 
 /* ### no... only pools should do this.  */
-void pc_track_cleanup_owners(void *tracked);
+void pc_track_cleanup_owners(const void *tracked);
 
 
 /*
