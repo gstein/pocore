@@ -48,6 +48,7 @@ typedef int pc_bool_t;
 
 typedef struct pc_context_s pc_context_t;
 typedef struct pc_pool_s pc_pool_t;
+typedef struct pc_error_s pc_error_t;
 
 /* ### move all other incomplete-struct typedefs here?  */
 

@@ -216,6 +216,36 @@ struct pc_memtree_s {
 };
 
 
+struct pc_error_s {
+    /* ### need some set of error codes for PoCore. redefining OS errors
+       ### like APR is kind of a lost cause, I think. so this should
+       ### probably just be a set of recognized, high-level errors. where
+       ### the lower-level APIs return errno values of significance, we
+       ### can create a code for them.  */
+    int code;
+
+    const char *msg;
+
+    /* The file and line number that created this error. Typically, this is
+       only available when PC_DEBUG is defined.  */
+    const char *file;
+    int lineno;
+
+    /* ### svn has concepts like below, but PoCore is probably flat enough
+       ### that we don't need stacks of errors. let's see what evolves.  */
+
+    /* This error is providing additional information. More details are
+       given in ORIGINAL.  */
+    struct pc_error_s *original;
+
+    /* A separate error occurred while processing this error (or ORIGINAL).
+       It is not specifically related to ORIGINAL or the root cause of
+       this error stack. Typically, these errors occur while recovering
+       from ORIGINAL.  */
+    struct pc_error_s *separate;
+};
+
+
 /* ### docco  */
 void
 pc__memtree_insert(struct pc_memtree_s **root,

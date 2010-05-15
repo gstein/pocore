@@ -44,6 +44,11 @@ pc_context_t *pc_context_create_custom(size_t stdsize,
 void pc_context_destroy(pc_context_t *ctx);
 
 
+/* Return an unhandled error that was saved in CTX. Returns NULL if there
+   are no unhandled errors.  */
+pc_error_t *pc_context_unhandled(pc_context_t *ctx);
+
+
 /* ### uuid  */
 
 
