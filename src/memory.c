@@ -32,6 +32,10 @@
 
 #include "pocore.h"
 
+/* For design/implementation information, see:
+     http://code.google.com/p/pocore/wiki/MemoryManagement
+*/
+
 /*
   "apr pools & memory leaks" from Ben, with Google's experiences
   http://mail-archives.apache.org/mod_mbox/apr-dev/200810.mbox/%3C53c059c90810011111v37c36635y7279870f9bc852a0@mail.gmail.com%3E
@@ -68,6 +72,12 @@
 #else
 #define POOL_USABLE(pool) ((void)0)
 #endif
+
+/* Forward declarations. Future revision should move the code.  */
+static void *
+internal_alloc(pc_pool_t *pool, size_t amt);
+static void *
+coalesce_alloc(pc_pool_t *pool, size_t amt);
 
 
 struct pc_block_s *alloc_block(size_t size)
@@ -124,6 +134,7 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
     pool->ctx = ctx;
 
     pool->first_post.owner = pool;
+    pool->first_post.alloc_func = internal_alloc;
     pool->first_post.saved_current = pool->current;
     pool->first_post.saved_block = block;
 
@@ -152,6 +163,7 @@ pc_post_t *pc_post_create(pc_pool_t *pool)
     POOL_USABLE(pool);
 
     post->owner = pool;
+    post->alloc_func = internal_alloc;
     post->coalesce = FALSE;
     post->saved_current = pool->current;
     post->saved_block = pool->current_block;
@@ -163,6 +175,17 @@ pc_post_t *pc_post_create(pc_pool_t *pool)
     post->prev = pool->current_post;
 
     pool->current_post = post;
+
+    return post;
+}
+
+
+pc_post_t *pc_post_create_coalescing(pc_pool_t *pool)
+{
+    pc_post_t *post = pc_post_create(pool);
+
+    post->alloc_func = coalesce_alloc;
+    post->coalesce = TRUE;
 
     return post;
 }
@@ -364,16 +387,12 @@ void pc_pool_destroy(pc_pool_t *pool)
 }
 
 
-void *pc_alloc(pc_pool_t *pool, size_t amt)
+static void *
+internal_alloc(pc_pool_t *pool, size_t amt)
 {
     size_t remaining;
     void *result;
     struct pc_block_s *block;
-
-    POOL_USABLE(pool);
-
-    /* ### is 4 a good alignment? or maybe 8 bytes?  */
-    amt = (amt + 3) & ~3;
 
     /* Can we provide the allocation out of the current block?  */
     remaining = (((char *)pool->current_block + pool->current_block->size)
@@ -385,14 +404,40 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
         return result;
     }
 
-    /* ### look in the remnants  */
+    /* The remnants tree might have a free block for us.  */
+    block = pc__memtree_fetch(&pool->current_post->remnants, amt);
+    if (block != NULL)
+    {
+        size_t remnant_remaining;
 
+        result = block;
+
+        /* If there is extra space at the end of the remnant, then put it
+           back into the remnants tree.  */
+        remnant_remaining = block->size - amt;
+        /* ### keep track of small bits?  */
+        if (remnant_remaining > sizeof(struct pc_memtree_s))
+        {
+            pc__memtree_insert(&pool->current_post->remnants,
+                               (char *)block + amt,
+                               remnant_remaining);
+        }
+
+        return result;
+    }
+
+    /* Will the requested amount fit within a standard-sized block?  */
     if (amt <= pool->ctx->stdsize - sizeof(struct pc_block_s))
     {
-        /* ### TODO: for the (old) CURRENT_BLOCK, save the remaining space
-           ### into current_post->remnants. (if it is larger than
-           ### sizeof(pc_memtree_s))
-        */
+        /* There is likely space at the end of CURRENT_BLOCK, so save that
+           into the remnants tree.  */
+        /* ### keep track of small bits?  */
+        if (remaining > sizeof(struct pc_memtree_s))
+        {
+            pc__memtree_insert(&pool->current_post->remnants,
+                               pool->current,
+                               remaining);
+        }
 
         block = get_block(pool->ctx);
 
@@ -410,7 +455,6 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
     /* We need a non-standard-sized allocation.  */
     {
         size_t required = sizeof(*block) + amt;
-        struct pc_block_s *block;
 
         block = pc__memtree_fetch(&pool->ctx->nonstd_blocks, required);
         if (block == NULL)
@@ -424,6 +468,39 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
 
         return (char *)block + sizeof(*block);
     }
+}
+
+
+static void *
+coalesce_alloc(pc_pool_t *pool, size_t amt)
+{
+    char *result = internal_alloc(pool, amt + sizeof(size_t));
+
+    *(size_t *)(result + amt) = amt;
+    return result;
+}
+
+
+void *pc_alloc(pc_pool_t *pool, size_t amt)
+{
+    POOL_USABLE(pool);
+
+    /* ### is 4 a good alignment? or maybe 8 bytes?  */
+    amt = (amt + 3) & ~3;
+
+    return (*pool->current_post->alloc_func)(pool, amt);
+}
+
+
+void pc_post_freemem(pc_post_t *post, void *mem, size_t len)
+{
+    /* ### should we try and remember these small bits?  */
+    if (len < sizeof(struct pc_memtree_s))
+        return;
+
+    /* ### coalesce  */
+
+    pc__memtree_insert(&post->remnants, mem, len);
 }
 
 
