@@ -25,6 +25,7 @@
 
 #include "pc_types.h"
 #include "pc_misc.h"
+#include "pc_memory.h"
 
 #include "pocore.h"
 
@@ -56,7 +57,30 @@ pc_context_t *pc_context_create_custom(size_t stdsize,
 
 void pc_context_destroy(pc_context_t *ctx)
 {
-    /* ### do stuff with the memory hanging around in here.  */
+    struct pc_block_s *scan = ctx->std_blocks;
+
+    /* ### do something about unhandled errors?  */
+
+    if (ctx->track_pool != NULL)
+        pc_pool_destroy(ctx->track_pool);
+    if (ctx->error_pool != NULL)
+        pc_pool_destroy(ctx->error_pool);
+
+    for (scan = ctx->std_blocks; scan != NULL; )
+    {
+        struct pc_block_s *next = scan->next;
+
+        free(scan);
+        scan = next;
+    }
+
+    while (ctx->nonstd_blocks != NULL)
+    {
+        /* Keep fetching the smallest node possible until it runs out.  */
+        scan = pc__memtree_fetch(&ctx->nonstd_blocks,
+                                 sizeof(struct pc_memtree_s));
+        free(scan);
+    }
 
     free(ctx);
 }
