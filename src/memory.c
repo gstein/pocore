@@ -73,12 +73,6 @@
 #define POOL_USABLE(pool) ((void)0)
 #endif
 
-/* Forward declarations. Future revision should move the code.  */
-static void *
-internal_alloc(pc_pool_t *pool, size_t amt);
-static void *
-coalesce_alloc(pc_pool_t *pool, size_t amt);
-
 
 struct pc_block_s *alloc_block(size_t size)
 {
@@ -134,7 +128,6 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
     pool->ctx = ctx;
 
     pool->first_post.owner = pool;
-    pool->first_post.alloc_func = internal_alloc;
     pool->first_post.saved_current = pool->current;
     pool->first_post.saved_block = block;
 
@@ -163,7 +156,6 @@ pc_post_t *pc_post_create(pc_pool_t *pool)
     POOL_USABLE(pool);
 
     post->owner = pool;
-    post->alloc_func = internal_alloc;
     post->coalesce = FALSE;
     post->saved_current = pool->current;
     post->saved_block = pool->current_block;
@@ -184,7 +176,6 @@ pc_post_t *pc_post_create_coalescing(pc_pool_t *pool)
 {
     pc_post_t *post = pc_post_create(pool);
 
-    post->alloc_func = coalesce_alloc;
     post->coalesce = TRUE;
 
     return post;
@@ -488,7 +479,9 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
     /* ### is 4 a good alignment? or maybe 8 bytes?  */
     amt = (amt + 3) & ~3;
 
-    return (*pool->current_post->alloc_func)(pool, amt);
+    if (pool->current_post->coalesce)
+        return coalesce_alloc(pool, amt);
+    return internal_alloc(pool, amt);
 }
 
 

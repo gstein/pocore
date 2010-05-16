@@ -125,9 +125,6 @@ struct pc_post_s {
     /* This post is placed in the OWNER pool.  */
     struct pc_pool_s *owner;
 
-    /* The allocation function to use while this post is active.  */
-    void *(*alloc_func)(pc_pool_t *pool, size_t amt);
-
     /* Should allocations made after placing this post be coalescable?
        Or more specifically: when memory is returned to this post/pool,
        should we attempt to coalesce them?  */
