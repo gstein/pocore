@@ -62,7 +62,8 @@ void pc_file_track_via(const pc_file_t *file, pc_pool_t *pool);
 
 
 /* Track FILE as an owner of POOL so that it will be closed when POOL
-   is cleaned-up/destroyed.  */
+   is cleaned-up/destroyed. Both arguments will be registered for tracking,
+   as required.  */
 void pc_file_owns(const pc_file_t *file, pc_pool_t *pool);
 
 

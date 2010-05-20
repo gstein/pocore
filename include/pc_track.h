@@ -75,14 +75,15 @@ void pc_track_dependent(pc_context_t *ctx,
                         const void *owner, const void *dependent);
 
 
+/* Register OWNER of POOL within the context implied by POOL. Tracking will
+   be automatically started for POOL if required.  */
+void pc_track_owns_pool(const void *owner, pc_pool_t *pool);
+
+
 /* Run the cleanup for this particular tracked item, then de-register it.
    This item should not have any owners. This operation is a no-op if the
    item is not registered for tracking.  */
 void pc_track_cleanup(pc_context_t *ctx, const void *tracked);
-
-
-/* ### no... only pools should do this.  */
-void pc_track_cleanup_owners(const void *tracked);
 
 
 /*

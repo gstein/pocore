@@ -41,21 +41,6 @@ extern "C" {
 typedef struct pc_post_s pc_post_t;
 
 
-/*
-TEMP_POOL = pc_create_temp(pool);
-
-POST = pc_create_post(pool);
-
-pc_reset_to(POST);
-
-pc_destroy(pool)
-
-
-pc_clear_temps(pool)
-pc_has_temp(pool)  // to verify children cleared temps
-
-*/
-
 pc_pool_t *pc_pool_root(pc_context_t *ctx);
 
 pc_pool_t *pc_pool_create(pc_pool_t *parent);
@@ -79,7 +64,11 @@ void pc_post_freemem(pc_post_t *post, void *mem, size_t len);
 
 void pc_pool_clear(pc_pool_t *pool);
 
-/* Begin tracking for this pool.  */
+/* Begin tracking for this pool. Typically, applications will use
+   pc_track_owns_pool() or functions like pc_type_owns() instead of
+   this function. If a pool is cleaned up by the tracking system, that
+   is equivalent to calling pc_pool_destroy() on it, which will also
+   cause all the pool's owners to be cleaned up.  */
 void pc_pool_track(pc_pool_t *pool);
 
 

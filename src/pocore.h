@@ -61,6 +61,13 @@ struct pc_tracklist_s {
 /* Track registration record.  */
 union pc_trackreg_u {
     struct {
+        /* In many cases, TRACKED is passed to us, and is also the key in
+           the CTX->PTR_TO_REG hash table. But if we navigate to this
+           registration via the OWNERS or DEPENDENTS links, then we'll
+           need the original TRACKED pointer to call CLEANUP_FUND.  */
+        const void *tracked;
+
+        /* The cleanup function registered for this item.  */
         void (*cleanup_func)(void *tracked);
 
         /* ### use an array-based structure to eliminate NEXT ptrs?  */
@@ -264,6 +271,15 @@ pc__memtree_insert(struct pc_memtree_s **root,
 /* ### docco  */
 struct pc_block_s *
 pc__memtree_fetch(struct pc_memtree_s **root, size_t size);
+
+
+/* Clean up owners of POOL, starting at POOL->track.a.owners until STOP
+   is reached in that list.  */
+void pc__track_cleanup_owners(pc_pool_t *pool, struct pc_tracklist_s *stop);
+
+
+/* Begin tracking for POOL, using its internal tracking structure.  */
+void pc__track_this_pool(pc_pool_t *pool);
 
 
 #ifdef PC_DEBUG

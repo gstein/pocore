@@ -82,6 +82,10 @@ add_to_list(pc_context_t *ctx,
     }
 #endif
 
+    /* Note that the pool's recall mechanism assumes that owners are
+       inserted at the HEAD of the list. It can thus remember the original
+       head when a post is set, and cleanup any owners registered "in front"
+       of that saved point.  */
     tlist->reg = reg;
     tlist->next = *list;
     *list = tlist;
@@ -109,6 +113,7 @@ remove_from_list(pc_context_t *ctx,
         return;
     }
 
+    /* Locate the list item just before our item-of-interest.  */
     while (scan->next != NULL && scan->reg != reg)
         scan = scan->next;
 
@@ -151,6 +156,7 @@ void pc_track(pc_context_t *ctx,
 
         /* Nothing in our tracking table yet. Start one.  */
         reg = get_treg(ctx);
+        reg->a.tracked = tracked;
         reg->a.cleanup_func = cleanup;
         reg->a.owners = NULL;
         reg->a.dependents = NULL;
@@ -175,6 +181,7 @@ void pc_track_deregister(pc_context_t *ctx, const void *tracked)
 {
     union pc_trackreg_u *reg = lookup_reg(ctx, tracked);
     struct pc_tracklist_s *scan;
+    uintptr_t value;
 
     /* Also handles TRACKING_STARTED.  */
     if (reg == NULL)
@@ -193,6 +200,10 @@ void pc_track_deregister(pc_context_t *ctx, const void *tracked)
     /* This registration structure is now available for re-use.  */
     reg->f.next = ctx->free_treg;
     ctx->free_treg = reg;
+
+    /* Remove the tracked item from the registry.  */
+    value = (uintptr_t)tracked;
+    pc_hash_set(ctx->ptr_to_reg, &value, sizeof(value), NULL);
 }
 
 
@@ -223,8 +234,22 @@ void pc_track_dependent(pc_context_t *ctx,
         abort();
     }
 
+    /* ### if a debug mode is set, then search for dependency loops.  */
+
+    /* Add the OWNER and DEPENDENT into the correct lists.  */
     add_to_list(ctx, &reg_owner->a.dependents, reg_dep);
     add_to_list(ctx, &reg_dep->a.owners, reg_owner);
+}
+
+
+void pc_track_owns_pool(const void *owner, pc_pool_t *pool)
+{
+    /* Ensure the pool is being tracked.  */
+    pc__track_this_pool(pool);
+
+    /* And make OWNER depend upon it.  */
+    /* ### switch to an internal function  */
+    pc_track_dependent(pool->ctx, owner, pool);
 }
 
 
@@ -252,8 +277,48 @@ void pc_track_cleanup(pc_context_t *ctx, const void *tracked)
 }
 
 
-void pc_track_cleanup_owners(const void *tracked)
+void pc__track_cleanup_owners(pc_pool_t *pool, struct pc_tracklist_s *stop)
 {
-    /* ### probably not a public function. make private.  */
-    abort();
+    /* Keep cleaning owners (which deregisters them) from the head of the
+       list until we reach the designated stopping point. This may be NULL,
+       of course, which will clean all owners.  */
+    while (pool->track.a.owners != stop)
+    {
+        union pc_trackreg_u *scan = pool->track.a.owners->reg;
+
+        /* Find the topmost owner, which is not owned by anything else.
+           This will always succeed unless loops exist.  */
+        while (scan->a.owners != NULL)
+            scan = scan->a.owners->reg;
+
+        /* ### switch to an internal function  */
+        pc_track_cleanup(pool->ctx, scan->a.tracked);
+    }
+}
+
+
+static void
+cleanup_pool(void *tracked)
+{
+    pc_pool_destroy(tracked);
+}
+
+
+void pc__track_this_pool(pc_pool_t *pool)
+{
+    union pc_trackreg_u *reg;
+
+    prepare_for_tracking(pool->ctx);
+
+    reg = lookup_reg(pool->ctx, pool);
+    if (reg == NULL)
+    {
+        /* Begin tracking.  */
+        pool->track.a.tracked = pool;
+        pool->track.a.cleanup_func = cleanup_pool;
+    }
+    else
+    {
+        assert(reg == &pool->track);
+    }
 }

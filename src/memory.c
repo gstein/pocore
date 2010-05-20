@@ -124,7 +124,6 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
     pool->current = (char *)pool + sizeof(*pool);
     pool->current_block = block;
     pool->current_post = &pool->first_post;
-    pool->parent = NULL;
     pool->ctx = ctx;
 
     pool->first_post.owner = pool;
@@ -182,12 +181,6 @@ pc_post_t *pc_post_create_coalescing(pc_pool_t *pool)
 }
 
 
-void cleanup_owners(struct pc_tracklist_s *owners)
-{
-    /* ### no tracking yet  */
-}
-
-
 void return_nonstd(pc_context_t *ctx, struct pc_block_s *blocks)
 {
     /* Put all the blocks back into the context.  */
@@ -241,7 +234,7 @@ void pc_post_recall(pc_post_t *post)
                NOTE: run these first, while the pool is still "unmodified".
                They may need something from this pool (ie. something with a
                longer lifetime which is sitting in this pool).  */
-            cleanup_owners(cur->saved_owners);
+            pc__track_cleanup_owners(pool, cur->saved_owners);
 
             /* It is (remotely) possible that child pool destruction will
                save new owners against this parent pool. We need the set
@@ -556,5 +549,8 @@ char *pc_sprintf(pc_pool_t *pool, const char *fmt, ...)
 
 void pc_pool_track(pc_pool_t *pool)
 {
-    /* ### need to track...  */
+    /* We have a tracking structure built right into the pool for easier
+       manipulation of its owners. We need to jam that into the tracking
+       registry directly. Use a special entry point in track.c  */
+    pc__track_this_pool(pool);
 }
