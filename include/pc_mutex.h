@@ -24,10 +24,30 @@
 #ifndef PC_MUTEX_H
 #define PC_MUTEX_H
 
+#include <stdint.h>
+
+#include "pc_types.h"
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
+
+/* For information on PoCore's atomic primitives, see:
+     http://code.google.com/p/pocore/wiki/AtomicPrimitives
+*/
+
+/* Increment *MEM by 1, and return its NEW value.  */
+int32_t pc_atomic_inc(int32_t *mem);
+
+
+/* Decrement *MEM by 1, and return its NEW value.  */
+int32_t pc_atomic_dec(int32_t *mem);
+
+
+/* If *MEM equals CHECK_VAL, then replace it with NEW_VAL. If this replacement
+   occurs, then return TRUE. Otherwise, return FALSE.  */
+pc_bool_t pc_atomic_swap(int32_t *mem, int32_t check_val, int32_t new_val);
 
 
 /* ### mutex. spinlock. semaphore. condition. atomic.
