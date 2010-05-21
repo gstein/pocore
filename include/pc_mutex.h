@@ -38,16 +38,39 @@ extern "C" {
 */
 
 /* Increment *MEM by 1, and return its NEW value.  */
-int32_t pc_atomic_inc(int32_t *mem);
+int32_t pc_atomic_inc(volatile int32_t *mem);
 
 
 /* Decrement *MEM by 1, and return its NEW value.  */
-int32_t pc_atomic_dec(int32_t *mem);
+int32_t pc_atomic_dec(volatile int32_t *mem);
 
 
 /* If *MEM equals CHECK_VAL, then replace it with NEW_VAL. If this replacement
    occurs, then return TRUE. Otherwise, return FALSE.  */
-pc_bool_t pc_atomic_swap(int32_t *mem, int32_t check_val, int32_t new_val);
+pc_bool_t pc_atomic_swap(volatile int32_t *mem,
+                         int32_t check_val,
+                         int32_t new_val);
+
+
+/* If *MEM equals CHECK_PTR, then replace it with NEW_PTR. If this replacement
+   occurs, then return TRUE. Otherwise, return FALSE.  */
+pc_bool_t pc_atomic_swapptr(volatile void **mem,
+                            void *check_ptr,
+                            void *new_ptr);
+
+
+/* Ensure that ONCE_FUNC is called a single time, passing ONCE_BATON.
+   CONTROL is used to determine whether the function has been called,
+   and whether it has (yet) returned and whether it raised an error.
+
+   CONTROL is typically define as follows:
+
+     static volatile int32_t control = 0;
+
+   ### need to define some error returns.  */
+pc_error_t *pc_atomic_once(volatile int32_t *control,
+                           pc_error_t *(*once_func)(void *once_baton),
+                           void *once_baton);
 
 
 /* ### mutex. spinlock. semaphore. condition. atomic.
