@@ -172,7 +172,7 @@ def write_test_program(filename):
 def write_test_pocore(filename):
   write_test_code(filename,
                   type='pc_pool_t',
-                  root='p%s = pc_pool_root(pc_context_create(8192,0));',
+                  root='p%s = pc_pool_root(ctx);',
                   create='p%s = pc_pool_create(p%s);',
                   alloc='pc_alloc(p%s, %s);',
                   clear='pc_pool_clear(p%s);',
@@ -232,12 +232,16 @@ HEADER_APR='''
 #include <apr-1/apr_pools.h>
 int main(int argc, const char **argv)
 {
-  apr_initialize();
   uint64_t start = mach_absolute_time();
+  int i = 1000;
+  while (i--)
+  {
+    apr_initialize();
 '''
 FOOTER_APR='''
+    apr_terminate();
+  }
   uint64_t end = mach_absolute_time();
-  apr_terminate();
   mach_timebase_info_data_t info;
   mach_timebase_info(&info);
   uint64_t elapsed = (end - start) * info.numer / info.denom;
@@ -255,8 +259,14 @@ HEADER_PC='''
 int main(int argc, const char **argv)
 {
   uint64_t start = mach_absolute_time();
+  int i = 1000;
+  while (i--)
+  {
+    pc_context_t *ctx = pc_context_create();
 '''
 FOOTER_PC='''
+    pc_context_destroy(ctx);
+  }
   uint64_t end = mach_absolute_time();
   mach_timebase_info_data_t info;
   mach_timebase_info(&info);
