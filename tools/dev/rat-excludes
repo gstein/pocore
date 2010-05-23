@@ -1,0 +1,18 @@
+.sconsign.dblite
+INSTALL.txt
+scons-LICENSE
+scons-README
+scons-local-1.3.0
+scons-time.py
+scons.py
+sconsign.py
+*.dSYM
+
+# directories do not seem to work. we'd like:
+#tests/memory/svn-*-alloc.*
+#tools/dev/primes.txt*
+#tools/dev/rat-excludes
+# but will use these instead:
+svn-*-alloc.*
+primes.txt*
+rat-excludes
