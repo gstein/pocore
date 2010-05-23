@@ -30,9 +30,14 @@
 extern "C" {
 #endif /* __cplusplus */
 
+typedef struct pc_mutex_s pc_mutex_t;
+
+
 /* For information on PoCore's atomic primitives, see:
      http://code.google.com/p/pocore/wiki/AtomicPrimitives
 */
+
+/* ### how to describe alignment restrictions on these pointers?  */
 
 /* Increment *MEM by 1, and return its NEW value.  */
 int32_t pc_atomic_inc(volatile int32_t *mem);
@@ -51,7 +56,7 @@ pc_bool_t pc_atomic_swap(volatile int32_t *mem,
 
 /* If *MEM equals CHECK_PTR, then replace it with NEW_PTR. If this replacement
    occurs, then return TRUE. Otherwise, return FALSE.  */
-pc_bool_t pc_atomic_swapptr(volatile void **mem,
+pc_bool_t pc_atomic_swapptr(void * volatile *mem,
                             void *check_ptr,
                             void *new_ptr);
 
@@ -59,16 +64,25 @@ pc_bool_t pc_atomic_swapptr(volatile void **mem,
 /* Ensure that ONCE_FUNC is called a single time, passing ONCE_BATON.
    CONTROL is used to determine whether the function has been called,
    and whether it has (yet) returned and whether it raised an error.
+   CTX is used to mutex the initialization process, in case ONCE_FUNC
+   is a time-consuming initialization. All threads should specify the
+   same context (ideally, the initialization would occur before the
+   application spins up threads).
 
-   CONTROL is typically define as follows:
+   CONTROL is typically defined as follows:
 
      static volatile int32_t control = 0;
 
    ### need to define some error returns.  */
 pc_error_t *pc_atomic_once(volatile int32_t *control,
+                           pc_context_t *ctx,
                            pc_error_t *(*once_func)(void *once_baton),
                            void *once_baton);
 
+
+/* ### return values?  */
+void pc_mutex_lock(pc_mutex_t *mutex);
+void pc_mutex_unlock(pc_mutex_t *mutex);
 
 /* ### mutex. spinlock. semaphore. condition. atomic.
    ### anything else?
