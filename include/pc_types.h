@@ -32,6 +32,8 @@ extern "C" {
 
 /* The PoCore boolean type is a simple integer, used for self-documenting
    purposes.  */
+/* ### some compilers have a 'bool' type (C++ std?). we should use that
+   ### type when available. */
 typedef int pc_bool_t;
 #ifndef FALSE
 #define FALSE 0
