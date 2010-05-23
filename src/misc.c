@@ -81,3 +81,9 @@ void pc_context_destroy(pc_context_t *ctx)
 
     free(ctx);
 }
+
+
+void pc__context_init_mutex(pc_context_t *ctx)
+{
+    /* ### todo. make sure to use swapptr to avoid rewriting non-NULL.  */
+}

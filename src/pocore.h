@@ -22,6 +22,7 @@
 #define POCORE_H
 
 #include "pc_types.h"
+#include "pc_mutex.h"
 
 
 #ifdef __cplusplus
@@ -122,6 +123,13 @@ struct pc_context_s {
     struct pc_pool_s *error_pool;
 
     /* ### need mechanism to hook errors into this context.  */
+
+    /* General-use mutex. To avoid contention, this mutex is/should only
+       be used for:
+
+       - pc_atomic_once()
+    */
+    pc_mutex_t *general_mutex;
 };
 
 
@@ -277,6 +285,10 @@ void pc__track_cleanup_owners(pc_pool_t *pool, struct pc_tracklist_s *stop);
 
 /* Begin tracking for POOL, using its internal tracking structure.  */
 void pc__track_this_pool(pc_pool_t *pool);
+
+
+/* Lazy-initialize the mutex within CTX.  */
+void pc__context_init_mutex(pc_context_t *ctx);
 
 
 #ifdef PC_DEBUG
