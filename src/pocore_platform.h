@@ -22,6 +22,12 @@
 
 #if defined(__MACH__) && defined(__APPLE__)
 #define PC__IS_MACOSX
+
 #elif defined(_WIN32)
 #define PC__IS_WINDOWS
+
+/* Go ahead and include this here/now. It has everything.  */
+#include <windows.h>
 #endif
+
+/* ### we don't have other platform-specific stuff yet...  */
