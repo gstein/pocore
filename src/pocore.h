@@ -21,6 +21,8 @@
 #ifndef POCORE_H
 #define POCORE_H
 
+#include <stdlib.h>  /* for abort() in NOT_IMPLEMENTED()  */
+
 #include "pc_types.h"
 #include "pc_mutex.h"
 
@@ -48,6 +50,10 @@ extern "C" {
    ### that we allow such a small block though.  */
 #define PC_MEMBLOCK_SIZE 8192
 #define PC_MEMBLOCK_MINIMUM 256
+
+
+/* For areas that aren't implemented yet...  */
+#define NOT_IMPLEMENTED()  abort()
 
 
 struct pc_tracklist_s {
