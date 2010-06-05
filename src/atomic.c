@@ -30,6 +30,9 @@
 #include <Windows.h>
 #endif
 
+/* ### see http://trac.mcs.anl.gov/projects/openpa/   */
+
+
 int32_t pc_atomic_inc(volatile int32_t *mem)
 {
 #if defined(PC__IS_MACOSX)
