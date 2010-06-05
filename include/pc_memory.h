@@ -23,6 +23,7 @@
 
 /* ### is this always the correct include?  */
 #include <stdarg.h>  /* for va_list  */
+#include <string.h>  /* for memset()  */
 
 #include "pc_types.h"
 #include "pc_misc.h"
