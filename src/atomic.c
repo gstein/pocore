@@ -1,5 +1,5 @@
 /*
-  atomic.c :  implement of PoCore's atomic functions
+  atomic.c :  implementation of PoCore's atomic functions
 
   ====================================================================
     Copyright 2010 Greg Stein
