@@ -211,7 +211,7 @@ void pc_post_recall(pc_post_t *post)
              empty the set of owners of this pool.
 
            Possibility: cleanup functions on child pools register a
-             cleanup this parent pool, and the cleanup creates that
+             cleanup on this parent pool, and the cleanup creates that
              child pool and its cleanup, etc.
 
            These are application problems that we will not attempt to
@@ -221,6 +221,16 @@ void pc_post_recall(pc_post_t *post)
            to add new cleanups, and for those pools to add cleanups or
            create other child pools. As long as the sequence reaches a
            steady-state of destruction.
+
+           It is possible for the cleanup handlers to shoot themselves
+           in the foot: if a child pool cleanup attaches a new handler
+           to this pool, and that handler requires data from a child
+           pool, then it will be in trouble. All child pools are destroyed
+           before running the cleanup handlers (again), so when that new
+           handler is run... the child pool will be gone.
+
+           The simplest answer is for child pool cleanups to never attach
+           anything to the parent pool.
         */
 
         do
@@ -230,7 +240,8 @@ void pc_post_recall(pc_post_t *post)
 
                NOTE: run these first, while the pool is still "unmodified".
                They may need something from this pool (ie. something with a
-               longer lifetime which is sitting in this pool).  */
+               longer lifetime which is sitting in this pool), or maybe
+               something from a child pool.  */
             pc__track_cleanup_owners(pool, cur->saved_owners);
 
             /* It is (remotely) possible that child pool destruction will
