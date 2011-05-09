@@ -259,6 +259,8 @@ struct pc_error_s {
 
     /* ### svn has concepts like below, but PoCore is probably flat enough
        ### that we don't need stacks of errors. let's see what evolves.  */
+    /* ### but apps build upon this error system, and want the wrapping,
+       ### tracing, and association features.  */
 
     /* This error is providing additional information. More details are
        given in ORIGINAL.  */

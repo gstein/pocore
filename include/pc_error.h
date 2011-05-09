@@ -28,6 +28,9 @@
 extern "C" {
 #endif /* __cplusplus */
 
+/* Symbolic constant for "no error occurred".  */
+#define PC_NO_ERROR NULL
+
 /* ### design for error codes?
    ###
    ### the APR system seems a little broken because two higher-level
@@ -57,12 +60,23 @@ extern "C" {
     pc__error_wrap_internal(code, msg, original, __FILE__, __LINE__)
 
 
+/* Join SEPARATE onto ERROR. This is used when SEPARATE occurs while
+   processing ERROR, and both errors need to be returned to the caller.
+   SEPARATE will be stored in a path of errors, distinct from the
+   "original" chain.
+
+   ERROR will be returned, wrapped in a PC_ERR_TRACE error to indicate
+   where the two errors were joined.  */
+#define pc_error_join(error, separate) \
+    pc__error_join_internal(error, separate, __FILE__, __LINE__)
+
+
 /* Add a stacktrace wrapper.  */
 #define pc_error_trace(original) \
     pc__error_wrap_internal(PC_ERR_TRACE, NULL, original, __FILE__, __LINE__)
 
 
-/* Mark ERROR as handled, along with all of its associated and wrapped
+/* Mark ERROR as handled, along with all of its wrapped and joined
    errors. ERROR will be unusable after this call.  */
 void pc_error_handled(pc_error_t *error);
 
@@ -79,22 +93,36 @@ int pc_error_code(const pc_error_t *error);
    if nothing was associated and no default is available.
 
    Note that tracing errors will be skipped -- this message will come from
-   the first useful (non-tracing) error found on the ORIGINAL chain.  */
+   the first useful (non-tracing) error found on the ORIGINAL chain. If no
+   original error is found, then NULL will be returned.  */
 const char *pc_error_message(const pc_error_t *error);
 
 
 /* Get the ORIGINAL error that ERROR is wrapping. NULL is returned if there
-   is no ORIGINAL error. Tracing errors will be skipped.  */
+   is no ORIGINAL error (which shouldn't happen, but is possible if the
+   very first error raised is PC_ERR_TRACE).
+
+   Tracing errors will be skipped.  */
 pc_error_t *pc_error_original(const pc_error_t *error);
+
+
+/* Get the SEPARATE error that is associated with ERROR. NULL is returned if
+   there is no original error, or if there is no SEPARATE error.
+
+   Tracing errors will be skipped on ERROR, and on SEPARATE before it is
+   returned.  */
+pc_error_t *pc_error_separate(const pc_error_t *error);
 
 
 /* For producing tracebacks, this will return the FILE and LINENO for an
    error, including traceback information. *ORIGINAL will provide the next
    step in the chain, and will be set to NULL when no further frames are
-   present.  */
+   present. *SEPARATE will provide the associated error from this frame,
+   without skipping trace errors (like pc_error_separate does).  */
 void pc_error_trace_info(const char **file,
                          int *lineno,
                          const pc_error_t **original,
+                         const pc_error_t **separate,
                          const pc_error_t *error);
 
 
@@ -112,6 +140,10 @@ pc_error_t *pc__error_create_internal_via(pc_pool_t *pool,
 pc_error_t *pc__error_wrap_internal(int code,
                                     const char *msg,
                                     pc_error_t *original,
+                                    const char *file,
+                                    int lineno);
+pc_error_t *pc__error_join_internal(pc_error_t *error,
+                                    pc_error_t *separate,
                                     const char *file,
                                     int lineno);
 

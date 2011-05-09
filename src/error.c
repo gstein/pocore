@@ -28,12 +28,14 @@
 #include "pocore.h"
 
 
-static const pc_error_t *
+static pc_error_t *
 scan_useful(const pc_error_t *error)
 {
     while (error != NULL && error->code == PC_ERR_TRACE)
         error = error->original;
-    return error;
+
+    /* Most callers need to manipulate the error. Lose the const.  */
+    return (pc_error_t *)error;
 }
 
 
@@ -93,18 +95,34 @@ const char *pc_error_message(const pc_error_t *error)
 
 pc_error_t *pc_error_original(const pc_error_t *error)
 {
-    return (pc_error_t *)scan_useful(error);
+    return scan_useful(error);
+}
+
+
+pc_error_t *pc_error_separate(const pc_error_t *error)
+{
+    pc_error_t *scan = scan_useful(error);
+
+    /* Woah. There should have been a useful error. Oh well...  */
+    if (scan == NULL)
+        return NULL;
+
+    /* Return the first non-tracing error found. Note that scan_useful()
+       can be passed a NULL, so no check on SEPARATE is needed.  */
+    return scan_useful(scan->separate);
 }
 
 
 void pc_error_trace_info(const char **file,
                          int *lineno,
                          const pc_error_t **original,
+                         const pc_error_t **separate,
                          const pc_error_t *error)
 {
     *file = error->file;
     *lineno = error->lineno;
     *original = error->original;
+    *separate = error->separate;
 }
 
 
@@ -136,4 +154,21 @@ pc_error_t *pc__error_wrap_internal(int code,
                                     int lineno)
 {
     return create_error(original->ctx, code, msg, file, lineno, original);
+}
+
+
+pc_error_t *pc__error_join_internal(pc_error_t *error,
+                                    pc_error_t *separate,
+                                    const char *file,
+                                    int lineno)
+{
+    pc_error_t *scan = scan_useful(error);
+
+    /* Hook SEPARATE onto the end of the chain of ERROR's SEPARATE errors.  */
+    while (scan->separate != NULL)
+        scan = error->separate;
+    scan->separate = separate;
+
+    /* Wrap a trace record to annotate where the join happened.  */
+    return create_error(error->ctx, PC_ERR_TRACE, NULL, file, lineno, error);
 }
