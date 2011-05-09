@@ -139,48 +139,6 @@ struct pc_context_s {
 };
 
 
-#if 0
-struct pc_post_s {
-    /* This post is placed in the OWNER pool.  */
-    struct pc_pool_s *owner;
-
-    /* Should allocations made after placing this post be coalescable?
-       Or more specifically: when memory is returned to this post/pool,
-       should we attempt to coalesce them?  */
-    pc_bool_t coalesce;
-
-    /* The original position within the saved block.  */
-    char *saved_current;
-
-    /* The original block allocations were coming from. pool->current_block
-       may be the same, or linked from here via the ->next chain.  */
-    struct pc_block_s *saved_block;
-
-    /* Any remnants created after the post was set.  */
-    struct pc_memtree_s *remnants;
-
-    /* Any nonstd-sized blocks allocated after post was set. These will
-       be queued back into the context when we reset to this post.  */
-    struct pc_block_s *nonstd_blocks;
-
-    /* The saved value of pool->track.a.owners. Any owners registered since
-       the post was set exist from the *current* value of .owners, along
-       the linked list until SAVED_OWNERS is reached.
-
-       Each of these owners is (obviously) tracked. Upon reset, we will
-       invoke the cleanup for each owner.  */
-    struct pc_tracklist_s *saved_owners;
-
-    /* Any child pools created since the post was set. These are linked
-       through their SIBLING member.  */
-    struct pc_pool_s *child;
-
-    /* The previous post. The FIRST_POST will have prev=NULL.  */
-    struct pc_post_s *prev;
-};
-#endif
-
-
 struct pc_pool_s {
     char *current;
 
@@ -204,13 +162,13 @@ struct pc_pool_s {
        be queued back into the context when we clear the pool.  */
     struct pc_block_s *nonstd_blocks;
 
-#if 0
-    struct pc_post_s *current_post;
-#endif
-
+    /* The context this pool is associated with.  */
     struct pc_context_s *ctx;
 
+    /* The parent of this pool.  */
     struct pc_pool_s *parent;
+
+    /* The sibling of this pool; used to list all the children of PARENT.  */
     struct pc_pool_s *sibling;
 
     /* The child pools, which are linked through their SIBLING member.  */
@@ -223,11 +181,6 @@ struct pc_pool_s {
        When a trackreg is free'd, we can avoid putting this onto the
        FREE_TREG list by examing the CLEANUP_FUNC (is it the pool's func?)  */
     union pc_trackreg_u track;
-
-#if 0
-    /* Allocate the first post as part of the pool.  */
-    struct pc_post_s first_post;
-#endif
 };
 
 
