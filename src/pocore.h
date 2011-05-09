@@ -264,9 +264,8 @@ struct pc_block_s *
 pc__memtree_fetch(struct pc_memtree_s **root, size_t size);
 
 
-/* Clean up owners of POOL, starting at POOL->track.a.owners until STOP
-   is reached in that list.  */
-void pc__track_cleanup_owners(pc_pool_t *pool, struct pc_tracklist_s *stop);
+/* Clean up all the owners of POOL.  */
+void pc__track_cleanup_owners(pc_pool_t *pool);
 
 
 /* Begin tracking for POOL, using its internal tracking structure.  */

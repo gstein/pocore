@@ -274,12 +274,13 @@ void pc_track_cleanup(pc_context_t *ctx, const void *tracked)
 }
 
 
-void pc__track_cleanup_owners(pc_pool_t *pool, struct pc_tracklist_s *stop)
+void pc__track_cleanup_owners(pc_pool_t *pool)
 {
     /* Keep cleaning owners (which deregisters them) from the head of the
-       list until we reach the designated stopping point. This may be NULL,
-       of course, which will clean all owners.  */
-    while (pool->track.a.owners != stop)
+       list. It is possible that new owners will be inserted into the list
+       while we are cleaning. This is not a problem, as long as the system
+       stabilizes around "no more owners".  */
+    while (pool->track.a.owners != NULL)
     {
         union pc_trackreg_u *scan = pool->track.a.owners->reg;
 

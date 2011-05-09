@@ -213,7 +213,7 @@ void pc_pool_clear(pc_pool_t *pool)
            NOTE: implementation detail: this function will run until the
            owner list is empty. If cleanup handlers attach more owners,
            then they will be executed before the function returns.  */
-        pc__track_cleanup_owners(pool, NULL);
+        pc__track_cleanup_owners(pool);
 
         /* Destroy all the child pools. Children will remove themselves
            from this list as they are destroyed, so we just keep destroying
