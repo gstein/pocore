@@ -223,6 +223,7 @@ def kill_children(pool, children, dead):
   children[pool] = [ ]
 
 HEADER_APR='''
+/* DO NOT EDIT. written by analysis.py  */
 /* build with: gcc -lapr-1 FILENAME.c  */
 #include <stdio.h>
 #include <mach/mach_time.h>
@@ -248,6 +249,7 @@ FOOTER_APR='''
 '''
 
 HEADER_PC='''
+/* DO NOT EDIT. written by analysis.py  */
 /* build with: gcc -L... -lpc-0 -I... FILENAME.c  */
 #include <stdio.h>
 #include <mach/mach_time.h>
