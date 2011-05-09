@@ -120,12 +120,17 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
 
     pool->current = (char *)pool + sizeof(*pool);
     pool->current_block = block;
+    pool->first_block = block;
+#if 0
     pool->current_post = &pool->first_post;
+#endif
     pool->ctx = ctx;
 
+#if 0
     pool->first_post.owner = pool;
     pool->first_post.saved_current = pool->current;
     pool->first_post.saved_block = block;
+#endif
 
     return pool;
 }
@@ -137,14 +142,25 @@ pc_pool_t *pc_pool_create(pc_pool_t *parent)
 
     pool->parent = parent;
 
-    /* Hook this pool into the parent's current post.  */
-    pool->sibling = parent->current_post->child;
-    parent->current_post->child = pool;
+    /* Hook this pool into the parent.  */
+    pool->sibling = parent->child;
+    parent->child = pool;
 
     return pool;
 }
 
 
+pc_pool_t *pc_pool_create_coalescing(pc_pool_t *parent)
+{
+    pc_pool_t *pool = pc_pool_create(parent);
+
+    pool->coalesce = TRUE;
+
+    return pool;
+}
+
+
+#if 0
 pc_post_t *pc_post_create(pc_pool_t *pool)
 {
     pc_post_t *post = pc_alloc(pool, sizeof(*post));
@@ -166,8 +182,10 @@ pc_post_t *pc_post_create(pc_pool_t *pool)
 
     return post;
 }
+#endif
 
 
+#if 0
 pc_post_t *pc_post_create_coalescing(pc_pool_t *pool)
 {
     pc_post_t *post = pc_post_create(pool);
@@ -176,6 +194,7 @@ pc_post_t *pc_post_create_coalescing(pc_pool_t *pool)
 
     return post;
 }
+#endif
 
 
 void return_nonstd(pc_context_t *ctx, struct pc_block_s *blocks)
@@ -191,7 +210,7 @@ void return_nonstd(pc_context_t *ctx, struct pc_block_s *blocks)
     }
 }
 
-
+#if 0
 void pc_post_recall(pc_post_t *post)
 {
     pc_pool_t *pool = post->owner;
@@ -313,13 +332,49 @@ void pc_post_recall(pc_post_t *post)
         pool->current_post = cur;
     }
 }
-
+#endif
 
 void pc_pool_clear(pc_pool_t *pool)
 {
+    pc_context_t *ctx = pool->ctx;
+
     POOL_USABLE(pool);
 
+    do
+    {
+        /* ### clean all owners  */
+        pc__track_cleanup_owners(pool, NULL);
+
+        /* ### now the child pools. might register more owners.  */
+        while (pool->child != NULL)
+            pc_pool_destroy(pool->child);
+
+    } while (pool->track.a.owners != NULL);
+
+    /* Return all the non-standard-sized blocks to the context.  */
+    return_nonstd(ctx, pool->nonstd_blocks);
+    pool->nonstd_blocks = NULL;
+
+    /* ### return all blocks but FIRST_BLOCK, which contains the pool
+       ### structure.  */
+    if (pool->current_block != pool->first_block)
+    {
+        pool->current_block->next = ctx->std_blocks;
+        ctx->std_blocks = pool->first_block->next;
+
+        pool->current_block = pool->first_block;
+        pool->first_block->next = NULL;
+    }
+
+    pool->current = (char *)pool + sizeof(*pool);
+
+    /* All the extra blocks have been returned, and we've reset the "First"
+       block. Thus, there are no more remnants.  */
+    pool->remnants = NULL;
+
+#if 0
     pc_post_recall(&pool->first_post);
+#endif
 }
 
 
@@ -333,35 +388,25 @@ void pc_pool_destroy(pc_pool_t *pool)
     /* Remove this pool from the parent's list of child pools.  */
     if (pool->parent != NULL)
     {
-        pc_post_t *post;
+        pc_pool_t *scan = pool->parent->child;
 
-        /* We don't actually need a condition on this for loop because
-           we KNOW that we'll find the child somewhere.  */
-        for (post = pool->parent->current_post; ; post = post->prev)
+        if (scan == pool)
         {
-            pc_pool_t *scan = post->child;
+            /* We're at the head of the list. Point it to the next pool.  */
+            pool->parent->child = pool->sibling;
+        }
+        else
+        {
+            /* Find the child pool which refers to us, and then reset its
+               sibling link to skip self.
 
-            if (scan == pool)
-            {
-                /* We're at the head of the list. Point it to the
-                   next pool.  */
-                post->child = pool->sibling;
-                break;
-            }
-            else
-            {
-                /* Find the child pool which refers to us, and then reset its
-                   sibling link to skip self.  */
-                while (scan != NULL && scan->sibling != pool)
-                    scan = scan->sibling;
-                if (scan != NULL)
-                {
-                    scan->sibling = pool->sibling;
-                    break;
-                }
+               NOTE: we should find POOL in this list, so we don't need to
+               check for end-of-list.  */
+            while (scan->sibling != pool)
+                scan = scan->sibling;
 
-                /* Move on to the next post.  */
-            }
+            /* ### assert scan != NULL  */
+            scan->sibling = pool->sibling;
         }
     }
 
@@ -397,7 +442,7 @@ internal_alloc(pc_pool_t *pool, size_t amt)
     }
 
     /* The remnants tree might have a free block for us.  */
-    block = pc__memtree_fetch(&pool->current_post->remnants, amt);
+    block = pc__memtree_fetch(&pool->remnants, amt);
     if (block != NULL)
     {
         size_t remnant_remaining;
@@ -410,7 +455,7 @@ internal_alloc(pc_pool_t *pool, size_t amt)
         /* ### keep track of small bits?  */
         if (remnant_remaining > sizeof(struct pc_memtree_s))
         {
-            pc__memtree_insert(&pool->current_post->remnants,
+            pc__memtree_insert(&pool->remnants,
                                (char *)block + amt,
                                remnant_remaining);
         }
@@ -426,9 +471,7 @@ internal_alloc(pc_pool_t *pool, size_t amt)
         /* ### keep track of small bits?  */
         if (remaining > sizeof(struct pc_memtree_s))
         {
-            pc__memtree_insert(&pool->current_post->remnants,
-                               pool->current,
-                               remaining);
+            pc__memtree_insert(&pool->remnants, pool->current, remaining);
         }
 
         block = get_block(pool->ctx);
@@ -452,8 +495,8 @@ internal_alloc(pc_pool_t *pool, size_t amt)
         if (block == NULL)
             block = alloc_block(required);
 
-        block->next = pool->current_post->nonstd_blocks;
-        pool->current_post->nonstd_blocks = block;
+        block->next = pool->nonstd_blocks;
+        pool->nonstd_blocks = block;
 
         /* ### TODO: the block pulled out of the tree may be larger than
            ### we need. the extra should go into the REMNANTS tree.  */
@@ -480,13 +523,13 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
     /* ### is 4 a good alignment? or maybe 8 bytes?  */
     amt = (amt + 3) & ~3;
 
-    if (pool->current_post->coalesce)
+    if (pool->coalesce)
         return coalesce_alloc(pool, amt);
     return internal_alloc(pool, amt);
 }
 
 
-void pc_post_freemem(pc_post_t *post, void *mem, size_t len)
+void pc_pool_freemem(pc_pool_t *pool, void *mem, size_t len)
 {
     /* ### should we try and remember these small bits?  */
     if (len < sizeof(struct pc_memtree_s))
@@ -494,7 +537,7 @@ void pc_post_freemem(pc_post_t *post, void *mem, size_t len)
 
     /* ### coalesce  */
 
-    pc__memtree_insert(&post->remnants, mem, len);
+    pc__memtree_insert(&pool->remnants, mem, len);
 }
 
 

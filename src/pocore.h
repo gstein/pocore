@@ -139,6 +139,7 @@ struct pc_context_s {
 };
 
 
+#if 0
 struct pc_post_s {
     /* This post is placed in the OWNER pool.  */
     struct pc_pool_s *owner;
@@ -177,21 +178,43 @@ struct pc_post_s {
     /* The previous post. The FIRST_POST will have prev=NULL.  */
     struct pc_post_s *prev;
 };
+#endif
 
 
 struct pc_pool_s {
     char *current;
 
+    /* Should allocations made in this pool be coalescable? Or more
+       specifically: when memory is returned to this pool, should we
+       attempt to coalesce them?  */
+    pc_bool_t coalesce;
+
     /* Standard-size blocks are linked from the pool since a single block
        may be shared across multiple posts.  */
     struct pc_block_s *current_block;
 
+    /* The first block allocated. This block, through .current_block, are
+       all of the blocks associated with this pool.  */
+    struct pc_block_s *first_block;
+
+    /* Any remnants for later use by this pool.  */
+    struct pc_memtree_s *remnants;
+
+    /* Any nonstd-sized blocks allocated for this pool. These will
+       be queued back into the context when we clear the pool.  */
+    struct pc_block_s *nonstd_blocks;
+
+#if 0
     struct pc_post_s *current_post;
+#endif
+
+    struct pc_context_s *ctx;
 
     struct pc_pool_s *parent;
     struct pc_pool_s *sibling;
 
-    struct pc_context_s *ctx;
+    /* The child pools, which are linked through their SIBLING member.  */
+    struct pc_pool_s *child;
 
     /* Inlined. Every pool has a set of owners (tho no dependents). Using
        a trackreg structure allows the owners to deregister/cleanup and
@@ -201,8 +224,10 @@ struct pc_pool_s {
        FREE_TREG list by examing the CLEANUP_FUNC (is it the pool's func?)  */
     union pc_trackreg_u track;
 
+#if 0
     /* Allocate the first post as part of the pool.  */
     struct pc_post_s first_post;
+#endif
 };
 
 

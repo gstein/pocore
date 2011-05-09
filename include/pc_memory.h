@@ -36,28 +36,17 @@ extern "C" {
 
 /* Declare the basic types. Note that pc_pool_t is in pc_types.h  */
 
-typedef struct pc_post_s pc_post_t;
-
 
 pc_pool_t *pc_pool_root(pc_context_t *ctx);
 
 pc_pool_t *pc_pool_create(pc_pool_t *parent);
 
+pc_pool_t *pc_pool_create_coalescing(pc_pool_t *pool);
+
 void pc_pool_destroy(pc_pool_t *pool);
 
-pc_post_t *pc_post_create(pc_pool_t *pool);
-
-pc_post_t *pc_post_create_coalescing(pc_pool_t *pool);
-
-/* Reset the POST's associated pool back to the state when POST was set.
-   All memory will be returned to the pool. Later posts are also reset,
-   then forgotten.
-
-   Any tracked owners (established since the POST) will be cleaned up.  */
-void pc_post_recall(pc_post_t *post);
-
-/* Return MEM/LEN to the POST it was allocated from.  */
-void pc_post_freemem(pc_post_t *post, void *mem, size_t len);
+/* Return MEM/LEN to the POOL it was allocated from.  */
+void pc_pool_freemem(pc_pool_t *pool, void *mem, size_t len);
 
 
 void pc_pool_clear(pc_pool_t *pool);
