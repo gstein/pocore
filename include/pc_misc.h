@@ -31,9 +31,13 @@
 extern "C" {
 #endif /* __cplusplus */
 
-#define PC_DEFAULT_STDSIZE 0
 
 pc_context_t *pc_context_create(void);
+
+
+#define PC_DEFAULT_STDSIZE 0
+#define PC_DEFAULT_OOM_HANDLER NULL
+#define PC_DEFAULT_TRACK TRUE
 
 pc_context_t *pc_context_create_custom(size_t stdsize,
                                        int (*oom_handler)(size_t amt),
@@ -47,7 +51,11 @@ void pc_context_destroy(pc_context_t *ctx);
 
    The application should call pc_error_handled() on the returned error
    (after any appropriate reporting), and then call this function to get
-   the next unhandled error (if any).  */
+   the next unhandled error (if any).
+
+   Note that an application can call this at any time to investigate if
+   some errors got left behind. It should almost always be called at
+   application exit time.  */
 pc_error_t *pc_context_unhandled(pc_context_t *ctx);
 
 
