@@ -36,13 +36,18 @@ extern "C" {
 pc_context_t *pc_context_create(void);
 
 pc_context_t *pc_context_create_custom(size_t stdsize,
-                                       int (*oom_handler)(size_t amt));
+                                       int (*oom_handler)(size_t amt),
+                                       pc_bool_t track_unhandled);
 
 void pc_context_destroy(pc_context_t *ctx);
 
 
 /* Return an unhandled error that was saved in CTX. Returns NULL if there
-   are no unhandled errors.  */
+   are no unhandled errors.
+
+   The application should call pc_error_handled() on the returned error
+   (after any appropriate reporting), and then call this function to get
+   the next unhandled error (if any).  */
 pc_error_t *pc_context_unhandled(pc_context_t *ctx);
 
 

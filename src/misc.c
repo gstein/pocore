@@ -29,12 +29,13 @@
 
 pc_context_t *pc_context_create(void)
 {
-    return pc_context_create_custom(0, NULL);
+    return pc_context_create_custom(0, NULL, TRUE);
 }
 
 
 pc_context_t *pc_context_create_custom(size_t stdsize,
-                                       int (*oom_handler)(size_t amt))
+                                       int (*oom_handler)(size_t amt),
+                                       pc_bool_t track_unhandled)
 {
     pc_context_t *ctx = malloc(sizeof(*ctx));
 
@@ -47,6 +48,7 @@ pc_context_t *pc_context_create_custom(size_t stdsize,
 
     ctx->oom_handler = oom_handler;
     ctx->stdsize = stdsize;
+    ctx->track_unhandled = track_unhandled;
 
     return ctx;
 }
@@ -80,6 +82,14 @@ void pc_context_destroy(pc_context_t *ctx)
     }
 
     free(ctx);
+}
+
+
+pc_error_t *pc_context_unhandled(pc_context_t *ctx)
+{
+    if (ctx->unhandled == NULL)
+        return NULL;
+    return &ctx->unhandled->error;
 }
 
 
