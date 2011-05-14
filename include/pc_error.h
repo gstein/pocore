@@ -43,6 +43,8 @@ extern "C" {
 
 #define PC_SUCCESS 0
 #define PC_ERR_TRACE  100  /* ### figure out numbering scheme  */
+#define PC_ERR_IMPROPER_UNHANDLED_CALL 101
+#define PC_ERR_IMPROPER_WRAP 102
 
 
 /* Create an error object, associated with CTX.  */
