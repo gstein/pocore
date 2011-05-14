@@ -47,7 +47,7 @@ extern "C" {
 
    ### the minimum size (256) is just a number. the real minimum is probably
    ### sizeof(struct pc_memtree_s) with maybe some other padding. not sure
-   ### that we allow such a small block though.  */
+   ### that we want to allow such a small block though.  */
 #define PC_MEMBLOCK_SIZE 8192
 #define PC_MEMBLOCK_MINIMUM 256
 
@@ -79,6 +79,8 @@ union pc_trackreg_u {
         struct pc_tracklist_s *dependents;
     } a;  /* allocated trackreg  */
 
+    /* ### hrm. can't we just omit the struct and drop the field into
+       ### the union? is there something else we need in this struct?  */
     struct {
         union pc_trackreg_u *next;
     } f;  /* free'd trackreg  */
@@ -89,8 +91,15 @@ struct pc_block_s {
     /* This size INCLUDES the space used by this structure.  */
     size_t size;
 
+    /* Blocks are typically placed into lists: those allocated towards a pool,
+       or those free'd from a pool and returned to the owning context. This
+       link chains the blocks together.  */
     struct pc_block_s *next;
 };
+
+
+/* ### need to shift pc_context_s in this file. for now, this will do.  */
+struct pc_error_list_s;
 
 
 struct pc_context_s {
@@ -125,10 +134,16 @@ struct pc_context_s {
        created on-demand and owned by the context.  */
     struct pc_pool_s *track_pool;
 
-    /* Pool to hold all errors associated with this context.  */
+    /* Pool to hold all errors associated with this context. This will be
+       created on-demand and owned by the context.  */
     struct pc_pool_s *error_pool;
 
-    /* ### need mechanism to hook errors into this context.  */
+    /* ### need mechanism to hook errors into this context.
+       ### if TRACK_UNHANDLED is TRUE, then we will allocate errors as
+       ### pc_error_list_s structures and link them into this list.
+       ### otherwise, UNHANDLED will be NULL.  */
+    pc_bool_t track_unhandled;
+    struct pc_error_list_s *unhandled;
 
     /* General-use mutex. To avoid contention, this mutex is/should only
        be used for:
@@ -184,13 +199,16 @@ struct pc_pool_s {
 };
 
 
-/* A red-back binary tree containing pieces of memory to re-use.
+/* A red-black binary tree containing pieces of memory to re-use.
 
    These pieces are:
 
-     1) remnants from the end of a block that were "left behind" when we
-        allocated and advanced to another block to satisfy a request.
+     1) remnants from the end of a standard-sized block that were
+        "left behind" when we allocated and advanced to another block
+        to satisfy a request.
      2) non-standard-sized (large) blocks that have been returned
+     3) portions of a returned, non-standard-sized block that was left
+        behind after an allocation smaller than that block
 
    Note that the size of this structure provides a minimize size for
    remnants. If a remnant is smaller than this structure, it is simply
@@ -218,7 +236,8 @@ struct pc_memtree_s {
 
 
 struct pc_error_s {
-    /* Context this error is associated with.  */
+    /* Context this error is associated with. Through this CTX, we find the
+       pool to use for wrapping errors, and for tracking unhandled errors.  */
     pc_context_t *ctx;
 
     /* ### need some set of error codes for PoCore. redefining OS errors
@@ -249,6 +268,19 @@ struct pc_error_s {
        this error stack. Typically, these errors occur while recovering
        from ORIGINAL.  */
     struct pc_error_s *separate;
+};
+
+
+struct pc_error_list_s {
+    /* The actual error is an embedded structure.  */
+    pc_error_t error;
+
+    /* These errors are part of a doubly-linked list, allowing for easy
+       removal. These values will be NULL for wrapped and "separate" errors.
+       Only the "root" of a tree of errors will be recorded into the
+       UNHANDLED list maintained in the related context.  */
+    struct pc_error_list_s *previous;
+    struct pc_error_list_s *next;
 };
 
 
