@@ -1,0 +1,246 @@
+[#
+ create_workload.ezt :  a template used to generate APR/PoCore pool workloads
+
+ ====================================================================
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+ 
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+ ====================================================================
+]
+/* DO NOT EDIT. THIS FILE IS AUTO-GENERATED FROM create_workload.ezt  */
+
+#include <stdio.h>
+#include <mach/mach_time.h>
+#include <mach/task.h>
+
+#include <apr-1/apr_pools.h>
+
+#include "pc_misc.h"
+#include "pc_memory.h"
+
+#define COUNT 100
+#define CLEAR_REPS 100
+#define ITER1_COUNT 10
+#define ITER2_COUNT 100
+#define ITER3_COUNT 1000
+
+
+static void
+print_results(uint64_t start, uint64_t end)
+{
+    mach_timebase_info_data_t info;
+    mach_timebase_info(&info);
+    uint64_t elapsed = (end - start) * info.numer / info.denom;
+    printf("elapsed = %d.%03d msec\n",
+           (int)(elapsed/1000000), (int)((elapsed/1000)%1000));
+}
+
+
+static void
+exercise_apr(void)
+{
+    /* Set up all the pools into an appropriate tree.  */
+[for root_pools]
+    apr_pool_t *[root_pools];
+    apr_pool_create(&[root_pools], 0);
+[end]
+[for pools]
+    apr_pool_t *[pools.var];
+    apr_pool_create(&[pools.var], [pools.parent]);
+[end]
+
+    /* Perform a bunch of allocations using these pools.  */
+[for alloc]
+    apr_palloc([alloc.pool], [alloc.amt]);[end]
+
+    int i, j, k;
+
+    for (i = CLEAR_REPS; i--; )
+    {
+        /* Clear some pools. May destroy some subpools.  */
+[for clear]
+        apr_pool_clear([clear]);[end]
+        /* Do some more allocations back into the cleared pools.  */
+[for alloc2]
+        apr_palloc([alloc2.pool], [alloc2.amt]);[end]
+    }
+
+    /* Have some (nested) iterpool fun.  */
+    apr_pool_t *iterpool1;
+    apr_pool_create(&iterpool1, [iter_parent]);
+    for (i = ITER1_COUNT; i--; )
+    {
+        apr_pool_clear(iterpool1);
+
+        [for iter1]
+            apr_palloc(iterpool1, [iter1]);[end]
+
+        apr_pool_t *iterpool2;
+        apr_pool_create(&iterpool2, iterpool1);
+        for (j = ITER2_COUNT; j--; )
+        {
+            apr_pool_clear(iterpool2);
+
+            [for iter2]
+                apr_palloc(iterpool2, [iter2]);[end]
+
+            apr_pool_t *iterpool3;
+            apr_pool_create(&iterpool3, iterpool2);
+            for (k = ITER3_COUNT; k--; )
+            {
+                apr_pool_clear(iterpool3);
+
+                [for iter3]
+                    apr_palloc(iterpool3, [iter3]);[end]
+            }
+        }
+    }
+    apr_pool_destroy(iterpool1);
+
+[for root_pools]
+    apr_pool_destroy([root_pools]);[end]
+}
+
+
+static void
+exercise_pocore(pc_context_t *ctx)
+{
+    /* Set up all the pools into an appropriate tree.  */
+[for root_pools]
+    pc_pool_t *[root_pools] = pc_pool_root(ctx);[end]
+[for pools]
+    pc_pool_t *[pools.var] = pc_pool_create([pools.parent]);[end]
+
+    /* Perform a bunch of allocations using these pools.  */
+[for alloc]
+    pc_alloc([alloc.pool], [alloc.amt]);[end]
+
+    int i, j, k;
+
+    for (i = CLEAR_REPS; i--; )
+    {
+        /* Clear some pools. May destroy some subpools.  */
+[for clear]
+        pc_pool_clear([clear]);[end]
+        /* Do some more allocations back into the cleared pools.  */
+[for alloc2]
+        pc_alloc([alloc2.pool], [alloc2.amt]);[end]
+    }
+
+    /* Have some (nested) iterpool fun.  */
+    pc_pool_t *iterpool1 = pc_pool_create([iter_parent]);
+    for (i = ITER1_COUNT; i--; )
+    {
+        pc_pool_clear(iterpool1);
+
+        [for iter1]
+            pc_alloc(iterpool1, [iter1]);[end]
+
+        pc_pool_t *iterpool2 = pc_pool_create(iterpool1);
+        for (j = ITER2_COUNT; j--; )
+        {
+            pc_pool_clear(iterpool2);
+
+            [for iter2]
+                pc_alloc(iterpool2, [iter2]);[end]
+
+            pc_pool_t *iterpool3 = pc_pool_create(iterpool2);
+            for (k = ITER3_COUNT; k--; )
+            {
+                pc_pool_clear(iterpool3);
+
+                [for iter3]
+                    pc_alloc(iterpool3, [iter3]);[end]
+            }
+        }
+    }
+    pc_pool_destroy(iterpool1);
+
+[for root_pools]
+    pc_pool_destroy([root_pools]);[end]
+}
+
+
+static void
+time_apr(void)
+{
+    apr_initialize();
+    uint64_t start = mach_absolute_time();
+
+    int i;
+    for (i = COUNT; i--; )
+        exercise_apr();
+
+    uint64_t end = mach_absolute_time();
+    apr_terminate();
+    print_results(start, end);
+}
+
+
+static void
+time_pocore(void)
+{
+    pc_context_t *ctx = pc_context_create();
+    uint64_t start = mach_absolute_time();
+
+    int i;
+    for (i = COUNT; i--; )
+        exercise_pocore(ctx);
+
+    uint64_t end = mach_absolute_time();
+    pc_context_destroy(ctx);
+    print_results(start, end);
+}
+
+
+/* From: http://blog.kuriositaet.de/?p=257  */
+static void
+print_mem(void)
+{
+    task_t task = MACH_PORT_NULL;
+    struct task_basic_info t_info;
+    mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
+
+    if (task_info(mach_task_self(),
+                  TASK_BASIC_INFO,
+                  (task_info_t)&t_info,
+                  &t_info_count) != KERN_SUCCESS)
+        printf("memory usage: N/A\n");
+    else
+        printf("memory usage: rss  =%d   vs = %d\n",
+               t_info.resident_size, t_info.virtual_size);
+}
+
+
+int main(int argc, const char *argv[])
+{
+    if (argc != 2)
+    {
+      usage:
+        printf("USAGE: %s  apr|pocore\n", argv[[]0]);
+        return EXIT_FAILURE;
+    }
+
+    if (strcmp(argv[[]1], "apr") == 0)
+        time_apr();
+    else if (strcmp(argv[[]1], "pocore") == 0)
+        time_pocore();
+    else
+        goto usage;
+
+    print_mem();
+    return EXIT_SUCCESS;
+}
