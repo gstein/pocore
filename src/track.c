@@ -23,6 +23,7 @@
 
 #include "pc_memory.h"
 #include "pc_track.h"
+#include "pc_error.h"
 
 #include "pocore.h"
 
@@ -186,8 +187,11 @@ void pc_track_deregister(pc_context_t *ctx, const void *tracked)
 
     if (reg->a.owners != NULL)
     {
-        /* ### this is an error. register a programmer error.  */
-        abort();
+        /* This tracked item still has owners that depend upon it. It
+           should not be deregistered at this time. We create an error
+           that will be left on UNHANDLED to signal the problem.  */
+        (void) pc_error_create(ctx, PC_ERR_IMPROPER_DEREGISTER, NULL);
+        return;
     }
 
     /* For each dependent, remove self from the owners list.  */
@@ -213,29 +217,32 @@ void pc_track_dependent(pc_context_t *ctx,
 
     if (!TRACKING_STARTED(ctx))
     {
-        /* ### this is an error. register a programmer error.  */
-        abort();
+        /* If tracking hasn't even been started, then OWNER and DEPENDENT
+           are certainly not registerd yet, so we cannot hook the up.
+           Create an error that will be left unhandled.  */
+        goto not_registered;
     }
 
     reg_owner = lookup_reg(ctx, owner);
     if (reg_owner == NULL)
-    {
-        /* ### this is an error. register a programmer error.  */
-        abort();
-    }
+        goto not_registered;
 
     reg_dep = lookup_reg(ctx, dependent);
     if (reg_dep == NULL)
-    {
-        /* ### this is an error. register a programmer error.  */
-        abort();
-    }
+        goto not_registered;
 
     /* ### if a debug mode is set, then search for dependency loops.  */
 
     /* Add the OWNER and DEPENDENT into the correct lists.  */
     add_to_list(ctx, &reg_owner->a.dependents, reg_dep);
     add_to_list(ctx, &reg_dep->a.owners, reg_owner);
+
+    return;
+
+  not_registered:
+    /* Create an error that will get left on the UNHANDLED list, to let
+       the programmer know they goofed up.  */
+    (void) pc_error_create(ctx, PC_ERR_NOT_REGISTERED, NULL);
 }
 
 
@@ -260,8 +267,11 @@ void pc_track_cleanup(pc_context_t *ctx, const void *tracked)
 
     if (reg->a.owners != NULL)
     {
-        /* ### this is an error. register a programmer error.  */
-        abort();
+        /* This tracked item still has owners that depend upon it. It
+           should not be cleaned up at this time. We create an error
+           that will be left on UNHANDLED to signal the problem.  */
+        (void) pc_error_create(ctx, PC_ERR_IMPROPER_CLEANUP, NULL);
+        return;
     }
 
     /* All good. Run the cleanup, then deregister this sucker. Note that

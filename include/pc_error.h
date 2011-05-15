@@ -45,6 +45,9 @@ extern "C" {
 #define PC_ERR_TRACE  100  /* ### figure out numbering scheme  */
 #define PC_ERR_IMPROPER_UNHANDLED_CALL 101
 #define PC_ERR_IMPROPER_WRAP 102
+#define PC_ERR_IMPROPER_DEREGISTER 103
+#define PC_ERR_IMPROPER_CLEANUP 104
+#define PC_ERR_NOT_REGISTERED 105
 
 
 /* Create an error object, associated with CTX.  */
