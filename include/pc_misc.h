@@ -46,6 +46,10 @@ pc_context_t *pc_context_create_custom(size_t stdsize,
 void pc_context_destroy(pc_context_t *ctx);
 
 
+/* Enable/disable error return tracing.  */
+void pc_context_tracing(pc_context_t *ctx, pc_bool_t tracing);
+
+
 /* Return an unhandled error that was saved in CTX. Returns NULL if there
    are no unhandled errors.
 
