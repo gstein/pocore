@@ -145,6 +145,9 @@ struct pc_context_s {
     pc_bool_t track_unhandled;
     struct pc_error_list_s *unhandled;
 
+    /* Should we actually insert PC_ERR_TRACE records?  */
+    pc_bool_t tracing;
+    
     /* General-use mutex. To avoid contention, this mutex is/should only
        be used for:
 

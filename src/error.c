@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <assert.h>
+#include <stdarg.h>
 
 #include "pc_types.h"
 #include "pc_memory.h"
@@ -93,7 +94,7 @@ create_error(pc_context_t *ctx,
 
     error->ctx = ctx;
     error->code = code;
-    error->msg = pc_strdup(ctx->error_pool, msg);
+    error->msg = msg ? pc_strdup(ctx->error_pool, msg) : NULL;
     error->file = file;
     error->lineno = lineno;
     error->original = original;
@@ -111,9 +112,10 @@ static void free_error(pc_error_t *error)
         free_error(error->separate);
 
     /* Free the dup'd message. Note we have to cast away the const.  */
-    pc_pool_freemem(error->ctx->error_pool,
-                    (void *)error->msg,
-                    strlen(error->msg) + 1);
+    if (error->msg != NULL)
+        pc_pool_freemem(error->ctx->error_pool,
+                        (void *)error->msg,
+                        strlen(error->msg) + 1);
 
     pc_pool_freemem(error->ctx->error_pool, error, sizeof(*error));
 }
@@ -136,9 +138,10 @@ static void free_link(struct pc_error_list_s *link)
         free_link((struct pc_error_list_s *)link->error.separate);
 
     /* Free the dup'd message. Note we have to cast away the const.  */
-    pc_pool_freemem(link->error.ctx->error_pool,
-                    (void *)link->error.msg,
-                    strlen(link->error.msg) + 1);
+    if (link->error.msg != NULL)
+        pc_pool_freemem(link->error.ctx->error_pool,
+                        (void *)link->error.msg,
+                        strlen(link->error.msg) + 1);
 
     pc_pool_freemem(link->error.ctx->error_pool, link, sizeof(*link));
 }
@@ -316,6 +319,46 @@ pc_error_t *pc__error_create_internal_via(pc_pool_t *pool,
 }
 
 
+pc_error_t *pc__error_createf_internal(pc_context_t *ctx,
+                                       int code,
+                                       const char *format,
+                                       const char *file,
+                                       int lineno,
+                                       ...)
+{
+    pc_error_t *error;
+    va_list ap;
+
+    error = create_error(ctx, code, NULL, file, lineno, NULL);
+
+    va_start(ap, lineno);
+    error->msg = pc_vsprintf(ctx->error_pool, format, ap);
+    va_end(ap);
+
+    return error;
+}
+
+
+pc_error_t *pc__error_createf_internal_via(pc_pool_t *pool,
+                                           int code,
+                                           const char *format,
+                                           const char *file,
+                                           int lineno,
+                                           ...)
+{
+    pc_error_t *error;
+    va_list ap;
+
+    error = create_error(pool->ctx, code, NULL, file, lineno, NULL);
+
+    va_start(ap, lineno);
+    error->msg = pc_vsprintf(pool->ctx->error_pool, format, ap);
+    va_end(ap);
+
+    return error;
+}
+
+
 pc_error_t *pc__error_wrap_internal(int code,
                                     const char *msg,
                                     pc_error_t *original,
@@ -344,5 +387,16 @@ pc_error_t *pc__error_join_internal(pc_error_t *error,
     scan->separate = separate;
 
     /* Wrap a trace record to annotate where the join happened.  */
-    return create_error(error->ctx, PC_ERR_TRACE, NULL, file, lineno, error);
+    return pc__error_trace_internal(error, file, lineno);
+}
+
+
+pc_error_t *pc__error_trace_internal(pc_error_t *error,
+                                     const char *file,
+                                     int lineno)
+{
+    if (error && error->ctx->tracing)
+        return create_error(error->ctx, PC_ERR_TRACE, NULL, file, lineno,
+                            error);
+    return error;
 }

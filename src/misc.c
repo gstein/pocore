@@ -85,6 +85,12 @@ void pc_context_destroy(pc_context_t *ctx)
 }
 
 
+void pc_context_tracing(pc_context_t *ctx, pc_bool_t tracing)
+{
+    ctx->tracing = tracing;
+}
+
+
 pc_error_t *pc_context_unhandled(pc_context_t *ctx)
 {
     if (ctx->unhandled == NULL)

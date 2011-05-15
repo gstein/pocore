@@ -57,6 +57,18 @@ extern "C" {
     pc__error_create_internal_via(pool, code, msg, __FILE__, __LINE__)
 
 
+/* Create an error object, associated with CTX.  */
+#define pc_error_createf(ctx, code, format, ...)  \
+    pc__error_createf_internal(ctx, code, format, \
+                               __FILE__, __LINE__, __VA_ARGS__)
+
+
+/* Create an error object, associated with the context implied by POOL.  */
+#define pc_error_createf_via(pool, code, format, ...)  \
+    pc__error_createf_internal_via(pool, code, format, \
+                                   __FILE__, __LINE__, __VA_ARGS__)
+
+
 /* Wrap an error with further information.  */
 #define pc_error_wrap(code, msg, original) \
     pc__error_wrap_internal(code, msg, original, __FILE__, __LINE__)
@@ -73,9 +85,9 @@ extern "C" {
     pc__error_join_internal(error, separate, __FILE__, __LINE__)
 
 
-/* Add a stacktrace wrapper.  */
+/* Add a stacktrace wrapper, if the context has tracing enabled.  */
 #define pc_error_trace(original) \
-    pc__error_wrap_internal(PC_ERR_TRACE, NULL, original, __FILE__, __LINE__)
+    pc__error_trace_internal(original, __FILE__, __LINE__)
 
 
 /* Mark ERROR as handled, along with all of its wrapped and joined
@@ -139,6 +151,20 @@ pc_error_t *pc__error_create_internal_via(pc_pool_t *pool,
                                           const char *msg,
                                           const char *file,
                                           int lineno);
+pc_error_t *pc__error_createf_internal(pc_context_t *ctx,
+                                       int code,
+                                       const char *format,
+                                       const char *file,
+                                       int lineno,
+                                       ...)
+        __attribute__((format(printf, 3, 6)));
+pc_error_t *pc__error_createf_internal_via(pc_pool_t *pool,
+                                           int code,
+                                           const char *format,
+                                           const char *file,
+                                           int lineno,
+                                           ...)
+        __attribute__((format(printf, 3, 6)));
 pc_error_t *pc__error_wrap_internal(int code,
                                     const char *msg,
                                     pc_error_t *original,
@@ -148,6 +174,9 @@ pc_error_t *pc__error_join_internal(pc_error_t *error,
                                     pc_error_t *separate,
                                     const char *file,
                                     int lineno);
+pc_error_t *pc__error_trace_internal(pc_error_t *error,
+                                     const char *file,
+                                     int lineno);
 
 
 #ifdef __cplusplus
