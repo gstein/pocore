@@ -68,7 +68,7 @@ union pc_trackreg_u {
         /* In many cases, TRACKED is passed to us, and is also the key in
            the CTX->PTR_TO_REG hash table. But if we navigate to this
            registration via the OWNERS or DEPENDENTS links, then we'll
-           need the original TRACKED pointer to call CLEANUP_FUND.  */
+           need the original TRACKED pointer to call CLEANUP_FUNC.  */
         const void *tracked;
 
         /* The cleanup function registered for this item.  */
