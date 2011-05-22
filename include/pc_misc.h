@@ -66,6 +66,52 @@ pc_error_t *pc_context_unhandled(pc_context_t *ctx);
 /* ### uuid  */
 
 
+/* Utility macro to produce a string containing the *value* of MACRO, rather
+   than a string of MACRO itself. This works because PC_STRINGIFY() and its
+   argument is expanded first, followed by the expansion of
+   PC_STRINGIFY_INTERNAL() where the stringification occurs.
+
+   Note this only works for preprocessor macros since this all occurs at
+   preprocessor time.  */
+#define PC_STRINGIFY(macro) PC_STRINGIFY_INTERNAL(macro)
+#define PC_STRINGIFY_INTERNAL(macro) #macro
+
+
+/* Version handling  */
+
+/* ### need to figure out how we want to handle "dev" vs "production"
+   ### tagging.  */
+
+#define PC_MAJOR_VERSION 0
+#define PC_MINOR_VERSION 1
+#define PC_PATCH_VERSION 0
+
+#define PC_VERSION_STRING PC_STRINGIFY(PC_MAJOR_VERSION) "." \
+                          PC_STRINGIFY(PC_MINOR_VERSION) "." \
+                          PC_STRINGIFY(PC_PATCH_VERSION)
+
+/* Returns TRUE if the version of PoCore (in the compilation) is at least
+   that of <major.minor.patch> AND the major version matches (since APIs
+   aren't going to be compatible across major version changes anyways).
+
+   Note that a runtime version is always suggested, too.  */
+#define PC_VERSION_AT_LEAST(major, minor, patch)                        \
+          ((major) == PC_MAJOR_VERSION                                  \
+           && (((minor) < PC_MINOR_VERSION)                             \
+               || ((minor) == PC_MINOR_VERSION && (patch) <= PC_PATCH_VERSION))
+
+/**
+   Returns the version of the library the application has linked/loaded.
+   Values are returned in @a major, @a minor, and @a patch.
+ 
+   Applications will want to use this function to verify compatibility
+   at runtime, in case of mis-linkage.  */
+void pc_lib_version(
+    int *major,
+    int *minor,
+    int *patch);
+
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

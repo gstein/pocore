@@ -103,3 +103,14 @@ void pc__context_init_mutex(pc_context_t *ctx)
 {
     /* ### todo. make sure to use swapptr to avoid rewriting non-NULL.  */
 }
+
+
+void pc_lib_version(
+    int *major,
+    int *minor,
+    int *patch)
+{
+    *major = PC_MAJOR_VERSION;
+    *minor = PC_MINOR_VERSION;
+    *patch = PC_PATCH_VERSION;
+}
