@@ -48,6 +48,7 @@ extern "C" {
 #define PC_ERR_IMPROPER_DEREGISTER 103
 #define PC_ERR_IMPROPER_CLEANUP 104
 #define PC_ERR_NOT_REGISTERED 105
+#define PC_ERR_UNSPECIFIED_OS 106
 
 
 /* Create an error object, associated with CTX.  */
