@@ -74,6 +74,11 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
 void pc_file_destroy(pc_file_t *file);
 
 
+/* ### do we need these variants? ... FILE remembers the CTX associated with
+   ### the POOL at pc_file_create() time. I doubt it makes sense to track
+   ### a file in a *different* context, though it does make sense to track
+   ### the file against other pools.  */
+
 /* Register FILE in the tracking registry of CTX.  */
 void pc_file_track(const pc_file_t *file, pc_context_t *ctx);
 
