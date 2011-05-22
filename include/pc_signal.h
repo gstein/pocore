@@ -27,6 +27,8 @@ extern "C" {
 #endif /* __cplusplus */
 
 
+/* ### keep this? it isn't very (any?) portable to Windows.  */
+
 
 
 #ifdef __cplusplus
