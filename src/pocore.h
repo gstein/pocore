@@ -26,6 +26,9 @@
 #include "pc_types.h"
 #include "pc_mutex.h"
 
+/* Get our private platform-specific stuff.  */
+#include "pocore_platform.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -309,6 +312,10 @@ void pc__track_this_pool(pc_pool_t *pool);
 
 /* Lazy-initialize the mutex within CTX.  */
 void pc__context_init_mutex(pc_context_t *ctx);
+
+
+/* Convert errno (### Windows equivalent!) into a pc_error_t.  */
+pc_error_t *pc__convert_os_error(pc_context_t *ctx);
 
 
 #ifdef PC_DEBUG

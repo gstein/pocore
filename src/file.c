@@ -58,31 +58,6 @@ static const char file_is_closed;
 #define MARK_CLOSED(file) ((file)->path = FILE_CLOSED_MARK)
 
 
-/* ### naive conversion of OS err to PC error. we can continue to refine
-   ### this over time. this may be file-specific, or we may combine this
-   ### with other objects' error handling.  */
-
-#ifdef PC__IS_WINDOWS
-
-static pc_error_t *
-convert_os_error(pc_context_t *ctx)
-{
-    /* ### examine ... something  */
-    return pc_error_create(ctx, PC_ERR_UNSPECIFIED_OS, NULL);
-}
-
-#else /* PC__IS_WINDOWS  */
-
-static pc_error_t *
-convert_os_error(pc_context_t *ctx)
-{
-    /* ### examine errno  */
-    return pc_error_create(ctx, PC_ERR_UNSPECIFIED_OS, NULL);
-}
-
-#endif
-
-
 pc_error_t *pc_file_create(pc_file_t **new_file,
                            const char *path,
                            int flags,
@@ -128,7 +103,7 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
     (*new_file)->fd = open(path, openflags, 0777);
     if ((*new_file)->fd == -1)
     {
-        return pc_error_trace(convert_os_error((*new_file)->ctx));
+        return pc_error_trace(pc__convert_os_error((*new_file)->ctx));
     }
 
     if (mode == PC_FILE_OPEN_APPEND)
@@ -227,7 +202,7 @@ pc_error_t *pc_file_read(size_t *amt_read,
 
     if (!ReadFile(file->handle, buf, amt, &actual, NULL))
     {
-        return pc_error_trace(convert_os_error(file->ctx));
+        return pc_error_trace(pc__convert_os_error(file->ctx));
     }
 
     *amt_read = actual;
@@ -237,7 +212,7 @@ pc_error_t *pc_file_read(size_t *amt_read,
     actual = read(file->fd, buf, amt);
     if (actual == -1)
     {
-        return pc_error_trace(convert_os_error(file->ctx));
+        return pc_error_trace(pc__convert_os_error(file->ctx));
     }
 
     *amt_read = actual;
@@ -258,7 +233,7 @@ pc_error_t *pc_file_write(size_t *amt_written,
 
     if (!WriteFile(file->handle, buf, amt, &actual, NULL))
     {
-        return pc_error_trace(convert_os_error(file->ctx));
+        return pc_error_trace(pc__convert_os_error(file->ctx));
     }
 
     *amt_written = actual;
@@ -268,7 +243,7 @@ pc_error_t *pc_file_write(size_t *amt_written,
     actual = write(file->fd, buf, amt);
     if (actual == -1)
     {
-        return pc_error_trace(convert_os_error(file->ctx));
+        return pc_error_trace(pc__convert_os_error(file->ctx));
     }
 
     *amt_written = actual;

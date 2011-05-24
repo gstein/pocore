@@ -400,3 +400,27 @@ pc_error_t *pc__error_trace_internal(pc_error_t *error,
                             error);
     return error;
 }
+
+
+/* ### naive conversion of OS err to PC error. we can continue to refine
+   ### this over time.  */
+
+#ifdef PC__IS_WINDOWS
+
+pc_error_t *
+pc__convert_os_error(pc_context_t *ctx)
+{
+    /* ### examine ... something  */
+    return pc_error_create(ctx, PC_ERR_UNSPECIFIED_OS, NULL);
+}
+
+#else /* PC__IS_WINDOWS  */
+
+pc_error_t *
+pc__convert_os_error(pc_context_t *ctx)
+{
+    /* ### examine errno  */
+    return pc_error_create(ctx, PC_ERR_UNSPECIFIED_OS, NULL);
+}
+
+#endif /* PC__IS_WINDOWS  */
