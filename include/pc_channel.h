@@ -55,7 +55,11 @@ extern "C" {
    ### contexts and two eeparate sets of independent objects. for the
    ### more typical case of a single app and run-loop, associating that
    ### run-loop directly with the context will be more than adequate.
- */
+
+   The various channel and listener objects are allocated within a private
+   pool of the context, and automatically associated with the event system
+   within the context.
+*/
 
 
 /* ### ugh. how to do socket/named-pipe addressing in a good way?  */
@@ -80,43 +84,145 @@ extern "C" {
 typdef struct pc_channel_s pc_channel_t;
 
 
-typedef enum {
-    /* A datagram socket for IPv4 addresses.  */
-    pc_channel_udp4,
-
-    /* A datagram socket for IPv6 addresses.  */
-    pc_channel_udp6,
-
-    /* A streaming socket for IPv4 addresses.  */
-    pc_channel_tcp4,
-
-    /* A streaming socket for IPv4 addresses.  */
-    pc_channel_tcp6,
-
-    /* The 'local' type establishes a Unix domain socket on POSIX systems
-       at a specified path. On Windows, it establishes a local-only named
-       pipe.  */
-    pc_channel_local,
-
-    /* ### need to figure out read/write/duplex pipes.  */
-    pc_channel_pipe
-
-    /* ### RAW? unix socket dgram?  */
-} pc_channel_type_t;
-
-pc_error_t *pc_channel_create(pc_channel_t **new_channel,
-                              pc_channel_type_t type,
-                              pc_pool_t *pool);
-
+/* ### is this needed, given pc_channel_close() ?  */
 void pc_channel_destroy(pc_channel_t *channel);
 
 
+/* ### need to think more on this.  */
 void pc_channel_track(const pc_channel_t *channel, pc_context_t *ctx);
 void pc_channel_track_via(const pc_channel_t *channel, pc_pool_t *pool);
 void pc_channel_owns(const pc_channel_t *channel, pc_pool_t *pool);
 
 /* ### channels for stdio, stdout, stderr.
    ### do research about buffer sizes and binary-mode for these.  */
+
+
+/* Socket addressing.  */
+
+/* Addresses in PoCore are opaque objects. Applications really don't care
+   about the internals. They want to map names to an address, to use the
+   address in other APIs, and to create a human-readable form of the address.
+   We can manage all of this with appropriate APIs.  */
+typedef struct pc_address_s pc_address_t;
+
+
+/* Look up @a name (synchronously) and return the address information in
+   @a addresses, which will be allocated in @a pool. Since a lookup may
+   yield multiple addresses for a given name, the individual addresses
+   are returned as a hash table mapping the human-readable name to a
+   pc_address_t pointer.
+
+   The addresses will be associated with @a port.
+
+   The @a flags parameter controls the lookup process.  */
+pc_error_t *pc_address_lookup(pc_hash_t **addresses,
+                              const char *name,
+                              int port,
+                              int flags,
+                              pc_pool_t *pool);
+
+/* Flags to control the address lookup process.  */
+#define PC_ADDRESS_PREFER_IPV4 0x0001
+#define PC_ADDRESS_PREFER_IPV6 0x0002
+
+
+/* ### offer an asynchronous lookup? I think "no" since that means external
+   ### libraries on all platforms. the application can just do that.
+   ### though... that *does* mean the application would need a way to
+   ### convert resulting address info into our structures.  */
+
+
+/* Format @a address into a human-readable form, allocated in @a pool.  */
+const char *pc_address_readable(const pc_address_t *address,
+                                pc_pool_t *pool);
+
+
+/* Named value for the default set of flags.  */
+#define PC_CHANNEL_DEFAULT_FLAGS 0
+
+/* New listeners should not reuse the address. By default, listeners will
+   reuse the listening address. See SO_REUSEADDR.  */
+#define PC_CHANNEL_NO_REUSE 0x0001
+
+/* A new or accepted channel should use Nagle's algorithm. By default,
+   channels disable Nagle.  */
+#define PC_CHANNEL_USE_NAGLE 0x0002
+
+
+/* Create a TCP channel and return it in @a channel. The channel will begin
+   connecting to the destination @a address. The application must wait for
+   the channel to become readable or writeable, indicating the connection
+   is complete. If @a source is not NULL, then it will be bound as the
+   source address for the channel.
+
+   @a flags specifies options for the connection. In particular, see
+   PC_CHANNEL_USE_NAGLE.  */
+pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
+                                  const pc_address_t *destination,
+                                  const pc_address_t *source,
+                                  int flags);
+
+
+/* Create a UDP channel and return it in @a channel. If @a source is not
+   NULL, then it will be bound as the source address for the channel.  */
+pc_error_t *pc_channel_create_udp(pc_channel_t **channel,
+                                  const pc_address_t *source);
+
+
+/* ### is there anything more to creating a pipe?  */
+pc_error_t *pc_channel_create_pipe(pc_channel_t **endpoint1,
+                                   pc_channel_t **endpoint2);
+
+
+/* A 'local' channel establishes a Unix domain socket on POSIX systems
+   at a specified path. On Windows, it establishes a local-only named
+   pipe.
+
+   ### do we need anything more to address the local channel?
+   ### note that paths (potentially) have complicated charset issues.
+   ###   see pc_file.h  */
+pc_error_t *pc_channel_create_local(pc_channel_t **channel,
+                                    const char *name);
+
+
+/* Close this end of @a channel. If @a stop_reading is TRUE, then further
+   synchronous reads will not be possible and the read-callback will no
+   longer be invoked. @a stop_writing is similar, but for writing.  */
+pc_error_t *pc_channel_close(pc_channel_t *channel,
+                             pc_bool_t stop_reading,
+                             pc_bool_t stop_writing);
+
+
+typedef struct pc_listener_s pc_listener_t;
+
+/* ### docco
+   
+   The callback may use @a pool for temporary allocations. It will be
+   cleared after every invocation of the callback.
+*/
+typedef pc_error_t *(*pc_listener_acceptor_t)(pc_listener_t *listener,
+                                              pc_channel_t *new_channel,
+                                              void *baton,
+                                              pc_pool_t *pool);
+
+
+/* Set up a listening socket at @a address with a connection backlog
+   specified by @a backlog. When a connection arrives, it will be
+   accepted and @a callback will be invoked, passing along @a baton.  */
+pc_error_t *pc_listener_create(pc_listener_t **listener,
+                               pc_context_t *ctx,
+                               const pc_address_t *address,
+                               int backlog,
+                               int flags,
+                               pc_listener_acceptor_t callback,
+                               void *baton);
+
+/* A default backlog value to use when applications do not require
+   a special value.  */
+#define PC_LISTENER_DEFAULT_BACKLOG 5
+
+
+pc_error_t *pc_listener_close(pc_listener_t *listener);
 
 
 /* Synchronous read from CHANNEL.  */
@@ -144,14 +250,16 @@ pc_error_t *pc_channel_write(size_t *written,
 
    ### note: destruction... not endpoint shutdown since dgrams are not
    ### connection-oriented.
+
+   ### probably need to hook datagram channels into the event system
 */
 pc_error_t *pc_channel_read_from(void **buf,
                                  size_t *len,
-                                 const void **address,
+                                 const pc_address_t **address,
                                  pc_channel_t *channel,
                                  pc_pool_t *pool);
 pc_error_t *pc_channel_write_to(pc_channel_t *channel,
-                                const void *address,
+                                const pc_address_t *address,
                                 const void *buf,
                                 size_t len,
                                 pc_pool_t *pool);
@@ -164,56 +272,46 @@ pc_error_t *pc_channel_write_to(pc_channel_t *channel,
 pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout, ...);
 
 
-/* Callback should consume the data from BUF/LEN.
+/* Callback should consume @a len bytes of data from the buffer at @a buf.
+   The number of bytes consumed should be stored into @a consumed.
 
-   ### an app should consume all available data? either toss the data, or
-   ### copy to a separate buffer.
-   ### hrm. it would be nice to have a way for the app to NOT read the
-   ### data in order to create back-pressure against the writer. two
-   ### options: boolean "stop" and consume all provided data, or a return
-   ### len value saying "I consumed N bytes. hold the rest until I signal
-   ### a desire to read again."
-   ### letting the event system hold it could be preferable. it avoids a
-   ### copy.
+   If the callback consumes less than @a len bytes, then the callback will
+   not be invoked again. The application must call pc_channel_desire_read()
+   to indicate its readiness to finish reading available data. The event
+   system will stop reading from the source, thus placing back-pressure
+   on the other end of the channel. The unread data will be retained by
+   the event system (which may present an issue in high-connection-count
+   scenarios).
+
+   If the callback consumes all @a len bytes, then the callback will be
+   (immediately) invoked again. The second invocation will take one of
+   two forms:
+
+     1) More data will be presented in @a buf and @a len.
+
+     2) The @a buf parameter will be NULL (and @a len is unused). This
+        indicates that the event system has no more data for the callback
+        to read at this time. The callback must set @a consumed to either
+        PC_CONSUMED_STOP or PC_CONSUMED_CONTINUE. If @a consumed is set
+        to PC_CONSUMED_STOP, then the callback will not be invoked again,
+        and the application must signal readiness, to read again, with
+        a call to pc_channel_desire_read(). If @a consumed is set to
+        PC_CONSUMED_CONTINUE, then the callback will be invoked when
+        additional data arrives.
+
+   For the PC_CONSUMED_CONTINUE case, the event system will signal the
+   desire to read from the underlying source. In all other cases, the
+   event system will turn off the readiness indicator for reading.
+
+   The callback may use @a pool for temporary allocations. It will be
+   cleared after every invocation of the callback.
+
    ### the event system's read buffer can/should be adjustable via an API.
    ### if this API is provided, then we don't need a read size in the
    ### desire_read() call. this API also means the app can fine-tune the
    ### buffer for large data transfers, or keep it small for very high
    ### concurrency and small packets. this buffer size could be per-ob
    ### or possibly an event-system-wide value.
-
-   This callback will be repeatedly invoked until all available data
-   has been consumed.
-   ### see above. we can signal "stop reading".
-
-   ### whoop. CONTINUE is killed, too.
-   After all available data has been consumed, the caller will examine
-   the CONTINUE return value. If TRUE, then further data will be requested
-   and provided to this callback when available. If FALSE, then this
-   callback will be forgotten and the application must use desire_read()
-   to set up another cycle of reads.
-   ### CONTINUE can probably be implied by the return-value of a
-   ### bytes-consumed param
-   ### yes: if bytes-consumed < LEN, then we should stop reading. when
-   ### consumed == LEN, then the callback is invoked again with more data,
-   ### where it can signal 0 consumed. if the amount of data available
-   ### is ONLY LEN, then the callback will be invoked again with BUF=NULL
-   ### (see below). ... hmm. how to signal "give me more data"?
-   ### maybe have CONSUMED be signed and (-1) says "I read everything and
-   ### want more". any non-negative value signals "done". on a NULL call
-   ### saying "no data yet", the callback can return -1 to indicate a
-   ### desire for more data.
-
-   The CONTINUE value is ignored while any data is pending.
-   ### ugh. what if the app wants to toss some state, thinking it is done
-   ### reading, yet the callback gets invoked again? hmm. how about a
-   ### finalization callback? BUF=NULL to signal "no more". and maybe
-   ### CONTINUE is examine *only* for that call?
-   ### ooh. sounds good.
-
-   ### it would be nice to *present* data. we might be able to do that
-   ### portably. presenting data seems cleaner than coordinating with a
-   ### separate read() call back into the system.
 
    ### on Windows, we simply present the buffer that was passed to the
    ### Overlapped I/O reading function. "here is the ready data".
@@ -227,53 +325,44 @@ pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout, ...);
    ### on POSIX, we disable triggering on readable state, and let the
    ### OS buffer up any incoming data until we decide to deal with it.
 
-
-   ### OLD COMMENTARY before the "data presentation model"...
-
-   ### must it exhaust the reading? maybe read some, then on to the next
-   ### item available for reading, then eventually come back? what if an
-   ### app does not exhaust the available readable data? throw error?
-   ### maybe a system that says "gotta read at least 1 byte. I'll keep
-   ### calling until all available data is read."
-
-   Set *MORE to the amount of data the callback wants to continue reading.
-   Set *MORE to 0 to indicate reading is no longer desired.
-   ### how to say "whatever/everything I can get"?
-
    ### need dgram version
-   ### scratch pool?
 */
 typedef pc_error_t *(*pc_channel_readable_t)(ssize_t *consumed,
                                              const void *buf,
                                              size_t len,
                                              pc_channel_t *channel,
-                                             void *baton);
-#define PC_CONSUMED_CONTINUE ((ssize_t) -1)
+                                             void *baton,
+                                             pc_pool_t *pool);
+#define PC_CONSUMED_STOP ((ssize_t) -1)
+#define PC_CONSUMED_CONTINUE ((ssize_t) -2)
 
 
-/* Callback should fill in *BUF/*LEN with the data to write. After the
-   data has been written, and CHANNEL is (again) available for writing,
-   this callback will be invoked to request further data to write.
+/* Callback should fill in @a iov and @a iovcnt with the data to write.
+   After the data has been written, and @a channel is (again) available
+   for writing, this callback will be invoked to request further data
+   to write.
 
-   Set *BUF to NULL and/or *LEN to 0 to indicate nothing futher to write.
-   The callback will no longer be called. If the application wants to
-   write more data to CHANNEL, then it must call desire_write().
+   Set @a iov to NULL to indicate nothing futher to write (and @a iovcnt
+   will be ignored in this case). The callback will no longer be invoked.
+   If the application wants to write more data to @a channel, then it must
+   call pc_channel_desire_write().
 
-   The returned BUF/LEN must exist, without change, until this callback
-   is invoked again, or the channel is destroyed. The prior BUF may then
-   be disposed.
+   The data referenced by the returned iovec must exist, without change,
+   until this callback is invoked again, or the channel is destroyed.
+   The prior contents may then be disposed or re-used.
 
-   ### to best match serf and high-perf needs, this should be an iovec..
+   The callback may use @a pool for temporary allocations. It will be
+   cleared after every invocation of the callback.
 
    ### more
 
    ### need dgram version
-   ### scratch pool?
 */
-typedef pc_error_t *(*pc_channel_writeable_t)(void **buf,
-                                              size_t *len,
+typedef pc_error_t *(*pc_channel_writeable_t)(struct iovec **iov,
+                                              int *iovcnt,
                                               pc_channel_t *channel,
-                                              void *baton);
+                                              void *baton,
+                                              pc_pool_t *pool);
 
 /* ### what to do here? the kinds of errors are scarily broad in scope.
    ### can we encapsulate all exceptions into this callback?
@@ -285,38 +374,35 @@ typedef pc_error_t *(*pc_channel_writeable_t)(void **buf,
    ### per CHANNEL rather than a set of pointers. memory savings are
    ### important for the C10k problem. the set could contain other data,
    ### such as timeouts and a (debug) human-readable name.
-
-   ### scratch pool?
 */
-typedef pc_error_t *(*pc_channel_error_t)(error,
+typedef pc_error_t *(*pc_channel_error_t)(void *error,
                                           pc_channel_t *channel,
-                                          void *baton);
+                                          void *baton,
+                                          pc_pool_t *pool);
 
 
 /* When the item has data, the callback will be invoked.
 
-   ### this registers the channel with the event system (via pool->ctx),
+   ### this registers the channel with the event system (via CHANNEL),
    ### signaling a desire for reading data.
 
    ### the amount to read is determined by the buffer size (see set_readbuf),
    ### and the event system will continue reading, and invoking the callback,
    ### as long as data is available.
 
-   ### add pool arg?
    ### more docco.  */
 void pc_channel_desire_read(pc_channel_t *channel,
-                            pc_event_readable_t callback,
+                            pc_channel_readable_t callback,
                             void *baton);
 
 /* When the item can be writen, the callback will be invoked.
 
-   ### this registers the channel with the event system (via pool->ctx),
-   ### signaling a desire forwriting data.
+   ### this registers the channel with the event system (via CHANNEL),
+   ### signaling a desire for writing data.
 
-   ### add pool arg?
    ### more docco.  */
 void pc_channel_desire_write(pc_channel_t *channel,
-                             pc_event_writeable_t callback,
+                             pc_channel_writeable_t callback,
                              void *baton);
 
 
