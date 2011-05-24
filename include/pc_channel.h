@@ -21,6 +21,9 @@
 #ifndef PC_CHANNEL_H
 #define PC_CHANNEL_H
 
+#include <stdint.h>
+#include <sys/uio.h>  /* for struct iovec  */
+
 #include "pc_types.h"
 
 
@@ -81,7 +84,7 @@ extern "C" {
          U _apr_socket_create
 */
 
-typdef struct pc_channel_s pc_channel_t;
+typedef struct pc_channel_s pc_channel_t;
 
 
 /* ### is this needed, given pc_channel_close() ?  */
