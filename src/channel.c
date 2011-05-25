@@ -23,6 +23,8 @@
 #include <netinet/tcp.h>  /* for TCP_NODELAY  */
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
+#include <assert.h>
 
 /* ### build out prototype on libev to validate the API and model.  */
 #include <ev.h>
@@ -43,6 +45,9 @@ struct pc__channel_ctx_s {
     /* The pool used for this context and various objects.  */
     pc_pool_t *pool;
 
+    /* Marker to prevent re-entering run_events().  */
+    pc_bool_t running;
+
     /* The libev loop to use when we run the event subsystem.  */
     struct ev_loop *loop;
 
@@ -55,17 +60,38 @@ struct pc__channel_ctx_s {
 
     /* Buffers that are empty and available for re-use.  */
     read_buffer_t *avail;
+
+    /* This pool is used as a scratch pool for the callbacks.  */
+    pc_pool_t *callback_scratch;
+
+    /* We sometimes need to assemble some iovecs for writing pending
+       data. That will use these slots, or switch to a pool there are
+       too many iovecs.  */
+#define INTERNAL_IOVEC_COUNT 128
+    struct iovec scratch_iov[INTERNAL_IOVEC_COUNT];
 };
 
 struct pc_channel_s {
     pc_context_t *ctx;
 
-    int fd;
+    int fd;   /* ### maybe omit since it is in watcher.fd  */
     ev_io watcher;
 
-    struct iovec *pending_write;
+    /* These fields contain data that the application provided to us for
+       writing to the socket. It will be valid until we invoked write_cb
+       again.
+
+       Each time the socket becomes writeable, we will examine these fields
+       for pending data to write to the socket. Only when this becomes
+       empty will we invoke the callback for more data.  */
+    struct iovec *pending_iov;
     int pending_iovcnt;
-    /* ### we need to skip some portion of the first iovec.  */
+
+    /* When we write to the socket, any completed iovecs will not be
+       remembered in PENDING_IOV (we just index past them). However,
+       we may have a short write for the first iovec. PENDING_BUF points
+       to the first byte of unwritten data in that iovec.  */
+    char *pending_buf;
 
     pc_channel_readable_t read_cb;
     void *read_baton;
@@ -114,6 +140,12 @@ struct read_buffer_s {
     read_buffer_t *next;
 };
 
+/* We read from the network into a buffer of this size. We want to leave
+   a little bit of room (ie. not page-aligned) to ensure that any overheads
+   will not spill us into an extra page.  */
+#define READ_BUFFER_SIZE 16000
+
+
 #define CHECK_CCTX(ctx) ((ctx)->cctx == NULL ? init_cctx(ctx) : (void)0)
 
 
@@ -138,6 +170,8 @@ init_cctx(pc_context_t *ctx)
     /* Use some arbitrary values for the timer. Before we call ev_run(),
        we'll put proper values into the timer.  */
     ev_timer_init(&cctx->timeout, loop_timeout, 5.0, 5.0);
+
+    cctx->callback_scratch = pc_pool_create(pool);
 }
 
 
@@ -166,17 +200,314 @@ start_watcher(struct ev_loop *loop,
 }
 
 
+static read_buffer_t *
+get_read_buffer(struct pc__channel_ctx_s *cctx)
+{
+    read_buffer_t *rb = cctx->avail;
+
+    if (rb == NULL)
+    {
+        rb = pc_alloc(cctx->pool, sizeof(*rb) + READ_BUFFER_SIZE);
+        rb->buf = (char *)rb + sizeof(*rb);
+        rb->len = READ_BUFFER_SIZE;
+
+        return rb;
+    }
+
+    cctx->avail = rb->next;
+    return rb;
+}
+
+
 static pc_bool_t
 perform_read(pc_channel_t *channel)
 {
-    NOT_IMPLEMENTED();
+    read_buffer_t *rb = get_read_buffer(channel->ctx->cctx);
+
+    /* We are going to loop on the socket until we've drained it of all
+       available data, or when the callback signals it does not want any
+       more data at this time.  */
+    while (1)
+    {
+        ssize_t amt;
+        ssize_t consumed;
+        pc_error_t *err;
+
+        do
+        {
+            amt = read(channel->fd, rb->buf, rb->len);
+
+            /* Data should be immediately available, but maybe we'll need to
+               try a couple times.  */
+        } while (amt == -1 && errno == EINTR);
+
+        if (amt == -1 || amt == 0)
+        {
+            /* Return the read buffer to the context.  */
+            rb->next = channel->ctx->cctx->avail;
+            channel->ctx->cctx->avail = rb;
+
+            /* We will treat "read no data" the same as EAGAIN.  */
+            if (amt == 0 || errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                /* Tell the callback that we are done for the moment.  */
+                err = channel->read_cb(&consumed,
+                                       NULL /* buf */, 0 /* len */,
+                                       channel, channel->read_baton,
+                                       channel->ctx->cctx->callback_scratch);
+                pc_pool_clear(channel->ctx->cctx->callback_scratch);
+
+                /* ### what to do with an error... */
+                pc_error_handled(err);
+
+                if (consumed == PC_CONSUMED_STOP)
+                {
+                    /* Stop reading from the socket.  */
+                    channel->read_cb = NULL;
+                    return TRUE;
+                }
+                /* ### assert consumed == PC_CONSUMED_CONTINUE  */
+
+                /* No changes to our desire to read (waiting for more)  */
+                return FALSE;
+            }
+
+            if (errno == ECONNRESET)
+            {
+                /* ### signal the problem somehow  */
+            }
+            else
+            {
+                /* ### what others errors, and how to signal?  */
+            }
+
+            /* Stop reading from this socket.  */
+            channel->read_cb = NULL;
+            return TRUE;
+        }
+
+        err = channel->read_cb(&consumed, rb->buf, amt, channel,
+                               channel->read_baton,
+                               channel->ctx->cctx->callback_scratch);
+        pc_pool_clear(channel->ctx->cctx->callback_scratch);
+
+        /* ### what to do with an error... */
+        pc_error_handled(err);
+
+        /* ### assert consumed >= 0 && consumed <= amt  */
+
+        if (consumed < amt)
+        {
+            /* Store the read buffer in our list of pending reads.  */
+            rb->channel = channel;
+            rb->current = rb->buf + consumed;
+            rb->remaining = amt - consumed;
+            rb->next = channel->ctx->cctx->pending;
+            channel->ctx->cctx->pending = rb;
+
+            /* Stop reading.  */
+            channel->read_cb = NULL;
+            return TRUE;
+        }
+
+        /* The callback read all the data provided. Loop back to read
+           more data from the socket (if any).  */
+    }
+
+    /* NOTREACHED  */
+}
+
+
+static void
+get_iovec(struct iovec **result_iov,
+          int *result_iovcnt,
+          pc_channel_t *channel)
+{
+    int iovcnt = channel->pending_iovcnt;
+    char *buf = channel->pending_buf;
+
+    assert(channel->pending_iov != NULL && iovcnt > 0);
+
+    /* The simplest case: we can directly use PENDING_IOV because we don't
+       need to adjust the first iovec for PENDING_BUF.  */
+    if (buf == NULL || buf == channel->pending_iov[0].iov_base)
+    {
+        *result_iov = channel->pending_iov;
+        *result_iovcnt = iovcnt;
+        return;
+    }
+
+    /* The first iovec must be adjusted, so we need to copy it into our
+       pre-allocated scratch area, or onto the heap.  */
+
+    if (iovcnt <= INTERNAL_IOVEC_COUNT)
+    {
+        *result_iov = &channel->ctx->cctx->scratch_iov[0];
+        *result_iovcnt = iovcnt;
+    }
+    else
+    {
+        *result_iov = pc_alloc(channel->ctx->cctx->callback_scratch,
+                               iovcnt * sizeof(**result_iov));
+        *result_iovcnt = iovcnt;
+    }
+
+    memcpy(*result_iov, channel->pending_iov, iovcnt * sizeof(**result_iov));
+    (*result_iov)[0].iov_base = buf;
+    (*result_iov)[0].iov_len =
+        (channel->pending_iov[0].iov_len
+         - (buf - (char *)channel->pending_iov[0].iov_base));
+}
+
+
+static void
+maybe_free_iovec(pc_channel_t *channel,
+                 struct iovec *iov,
+                 int iovcnt)
+{
+    if (iov != channel->pending_iov
+        && iov != &channel->ctx->cctx->scratch_iov[0])
+    {
+        pc_pool_freemem(channel->ctx->cctx->callback_scratch,
+                        iov,
+                        iovcnt * sizeof(*iov));
+    }
+}
+
+
+static void
+adjust_pending(pc_channel_t *channel,
+               ssize_t amt)
+{
+    if (channel->pending_buf != NULL)
+    {
+        size_t remaining;
+
+        remaining = (channel->pending_iov[0].iov_len
+                     - (channel->pending_buf
+                        - (char *)channel->pending_iov[0].iov_base));
+        if (amt < remaining)
+        {
+            /* We still have some data left in the first iovec.  */
+            channel->pending_buf += amt;
+            return;
+        }
+
+        amt -= remaining;
+        channel->pending_buf = NULL;
+        if (--channel->pending_iovcnt == 0)
+        {
+            /* We consumed all the pending data.  */
+            channel->pending_iov = NULL;
+            return;
+        }
+        ++channel->pending_iov;
+    }
+
+    while (amt >= channel->pending_iov[0].iov_len)
+    {
+        if (--channel->pending_iovcnt == 0)
+        {
+            /* We must have written exactly the amount of the first iovec,
+               if we just ran out of pending iovecs.  */
+            assert(amt == channel->pending_iov[0].iov_len);
+            channel->pending_iov = NULL;
+            return;
+        }
+
+        amt -= channel->pending_iov[0].iov_len;
+        ++channel->pending_iov;
+    }
+
+    /* Something was left over.  */
+    channel->pending_buf = channel->pending_iov[0].iov_base + amt;
 }
 
 
 static pc_bool_t
 perform_write(pc_channel_t *channel)
 {
-    NOT_IMPLEMENTED();
+    while (1)
+    {
+        struct iovec *iov;
+        int iovcnt;
+        ssize_t amt;
+
+        if (channel->pending_iov == NULL)
+        {
+            pc_error_t *err;
+
+            /* Ask the application for some data to write.  */
+            err = channel->write_cb(&channel->pending_iov,
+                                    &channel->pending_iovcnt,
+                                    channel,
+                                    channel->write_baton,
+                                    channel->ctx->cctx->callback_scratch);
+            pc_pool_clear(channel->ctx->cctx->callback_scratch);
+
+            /* ### what to do with an error... */
+            pc_error_handled(err);
+
+            /* The application may state that it has nothing further
+               to write.  */
+            if (channel->pending_iov == NULL)
+            {
+                /* Stop writing.  */
+                channel->write_cb = NULL;
+                return TRUE;
+            }
+
+            /* We have original data, without a partial write.  */
+            channel->pending_buf = NULL;
+        }
+
+        /* Juggle around the iovecs as necessary to find data to write.
+           Note that IOV might point into CALLBACK_SCRATCH.  */
+        get_iovec(&iov, &iovcnt, channel);
+
+        do
+        {
+            amt = writev(channel->fd, iov, iovcnt);
+
+            /* The socket should be immediately writeable, but maybe
+               we'll need to try a couple times.  */
+        } while (amt == -1 && errno == EINTR);
+
+        /* Done with the iovec. We can (later) use AMT to adjust all the
+           data within CHANNEL->PENDING_*.  */
+        maybe_free_iovec(channel, iov, iovcnt);
+
+        if (amt == 0
+            || (amt == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)))
+        {
+            /* Nothing was written. No need to change PENDING_IOV.
+               Just return, signalling no change in desire to write.  */
+            return FALSE;
+        }
+
+        if (amt == -1)
+        {
+            if (errno == ECONNRESET)
+            {
+                /* ### signal the problem somehow  */
+            }
+            else
+            {
+                /* ### what others errors, and how to signal?  */
+            }
+
+            /* Stop writing to this socket.  */
+            channel->write_cb = NULL;
+            return TRUE;
+        }
+
+        /* Adjust the pending data, possibly emptying it.  */
+        adjust_pending(channel, amt);
+
+        /* Loop to see if we can write more data into the socket.  */
+    }
+
+    /* NOTREACHED  */
 }
 
 
@@ -186,15 +517,26 @@ channel_is_usable(struct ev_loop *loop, ev_io *watcher, int revents)
     pc_channel_t *channel = watcher->data;
     pc_bool_t dirty = FALSE;
 
-    if (revents & EV_READ)
+    /* Note that we double-check the callbacks. We want to ignore
+       spurious signals to read or write, and then we want to try
+       to disable those events (again).  */
+
+    if ((revents & EV_READ) != 0)
     {
-        dirty = perform_read(channel);
+        if (channel->read_cb == NULL)
+            dirty = TRUE;
+        else
+            dirty = perform_read(channel);
     }
-    if (revents & EV_WRITE)
+    if ((revents & EV_WRITE) != 0)
     {
-        dirty |= perform_write(channel);
+        if (channel->write_cb == NULL)
+            dirty = TRUE;
+        else
+            dirty |= perform_write(channel);
     }
 
+    /* Do we need to adjust what events we're looking for?  */
     if (dirty)
     {
         int events = 0;
@@ -213,6 +555,11 @@ pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout)
 {
     CHECK_CCTX(ctx);
 
+    if (ctx->cctx->running)
+        return pc_error_create(ctx, PC_ERR_IMPROPER_REENTRY, NULL);
+
+    ctx->cctx->running = TRUE;
+
     /* ### process all pending reads where the channel as (re)indicated
        ### a desire to read more data.  */
 
@@ -222,6 +569,8 @@ pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout)
     ev_timer_again(ctx->cctx->loop, &ctx->cctx->timeout);
 
     ev_run(ctx->cctx->loop, EVRUN_ONCE);
+
+    ctx->cctx->running = FALSE;
 
     return PC_SUCCESS;
 }
