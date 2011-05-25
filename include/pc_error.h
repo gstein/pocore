@@ -48,6 +48,8 @@ extern "C" {
 #define PC_ERR_NOT_REGISTERED 105
 #define PC_ERR_UNSPECIFIED_OS 106
 #define PC_ERR_IMPROPER_REENTRY 107
+#define PC_ERR_ADDRESS_LOOKUP 108
+#define PC_ERR_BAD_PARAM 109
 
 
 /* Create an error object, associated with CTX.  */

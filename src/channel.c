@@ -21,9 +21,11 @@
 #include <sys/socket.h>  /* for AF_*, SOCK_*  */
 #include <netinet/in.h>  /* for IPPROTO_*  */
 #include <netinet/tcp.h>  /* for TCP_NODELAY  */
+#include <netdb.h>  /* for getaddrinfo()  */
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdio.h>  /* for snprintf()  */
 #include <assert.h>
 
 /* ### build out prototype on libev to validate the API and model.  */
@@ -572,7 +574,7 @@ pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout)
 
     ctx->cctx->running = FALSE;
 
-    return PC_SUCCESS;
+    return PC_NO_ERROR;
 }
 
 
@@ -582,7 +584,50 @@ pc_error_t *pc_address_lookup(pc_hash_t **addresses,
                               int flags,
                               pc_pool_t *pool)
 {
-    NOT_IMPLEMENTED();
+    char portbuf[6];
+    struct addrinfo hints = { 0 };
+    struct addrinfo *results;
+    struct addrinfo *scan;
+    int rv;
+
+    if (port <= 0 || port > 65535)
+        return pc_error_create(pool->ctx, PC_ERR_BAD_PARAM,
+                               "port number out of range");
+    snprintf(portbuf, sizeof(portbuf), "%d", port);
+
+    /* ### these are the wrong hints for now, but let's just get started  */
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    rv = getaddrinfo(name, portbuf, &hints, &results);
+    if (rv != 0)
+    {
+        const char *msg = gai_strerror(rv);
+
+        return pc_error_create(pool->ctx, PC_ERR_ADDRESS_LOOKUP, msg);
+    }
+
+    *addresses = pc_hash_create(pool);
+    for (scan = results; scan != NULL; scan = scan->ai_next)
+    {
+        /* Can the returned address fit into our structure?
+           ### this is probably bogus and needs some research.  */
+        if (scan->ai_addrlen <= sizeof(((pc_address_t *)0)->a.inet))
+        {
+            pc_address_t *addr = pc_alloc(pool, sizeof(*addr));
+            const char *readable;
+
+            memcpy(&addr->a.inet, scan->ai_addr, scan->ai_addrlen);
+
+            readable = pc_address_readable(addr, pool);
+            pc_hash_sets(*addresses, readable, addr);
+        }
+    }
+
+    freeaddrinfo(results);
+
+    return PC_NO_ERROR;
 }
 
 
@@ -652,7 +697,7 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
     /* Install the back-reference, for use in the callbacks.  */
     (*channel)->watcher.data = channel;
 
-    return PC_SUCCESS;
+    return PC_NO_ERROR;
 
   error_close:
     /* Generate an error and close the file descriptor we opened.  */
@@ -698,7 +743,7 @@ pc_error_t *pc_channel_close(pc_channel_t *channel,
 
     /* ### should probably return an error. "bad usage" or somesuch.  */
     if (!stop_reading && !stop_writing)
-        return PC_SUCCESS;
+        return PC_NO_ERROR;
 
     how = stop_reading ? (stop_writing ? SHUT_RDWR : SHUT_RD) : SHUT_WR;
     if (shutdown(channel->fd, how) == -1)
@@ -707,7 +752,7 @@ pc_error_t *pc_channel_close(pc_channel_t *channel,
     /* We could adjust the watcher here, but why bother. It simply won't
        receive certain events. We don't have to force it.  */
 
-    return PC_SUCCESS;
+    return PC_NO_ERROR;
 }
 
 
