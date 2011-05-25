@@ -49,6 +49,7 @@ pc_context_t *pc_context_create_custom(size_t stdsize,
     ctx->oom_handler = oom_handler;
     ctx->stdsize = stdsize;
     ctx->track_unhandled = track_unhandled;
+    ctx->scratch_pool = pc_pool_root(ctx);
 
     return ctx;
 }
@@ -66,6 +67,7 @@ void pc_context_destroy(pc_context_t *ctx)
         pc_pool_destroy(ctx->track_pool);
     if (ctx->error_pool != NULL)
         pc_pool_destroy(ctx->error_pool);
+    pc_pool_destroy(ctx->scratch_pool);
 
     for (scan = ctx->std_blocks; scan != NULL; )
     {
