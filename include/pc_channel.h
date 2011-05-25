@@ -161,6 +161,7 @@ const char *pc_address_readable(const pc_address_t *address,
    @a flags specifies options for the connection. In particular, see
    PC_CHANNEL_USE_NAGLE.  */
 pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
+                                  pc_context_t *ctx,
                                   const pc_address_t *destination,
                                   const pc_address_t *source,
                                   int flags);
@@ -169,12 +170,15 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
 /* Create a UDP channel and return it in @a channel. If @a source is not
    NULL, then it will be bound as the source address for the channel.  */
 pc_error_t *pc_channel_create_udp(pc_channel_t **channel,
+                                  pc_context_t *ctx,
+                                  const pc_address_t *destination,
                                   const pc_address_t *source);
 
 
 /* ### is there anything more to creating a pipe?  */
 pc_error_t *pc_channel_create_pipe(pc_channel_t **endpoint1,
-                                   pc_channel_t **endpoint2);
+                                   pc_channel_t **endpoint2,
+                                   pc_context_t *ctx);
 
 
 /* A 'local' channel establishes a Unix domain socket on POSIX systems
@@ -185,6 +189,7 @@ pc_error_t *pc_channel_create_pipe(pc_channel_t **endpoint1,
    ### note that paths (potentially) have complicated charset issues.
    ###   see pc_file.h  */
 pc_error_t *pc_channel_create_local(pc_channel_t **channel,
+                                    pc_context_t *ctx,
                                     const char *name);
 
 
@@ -272,7 +277,7 @@ pc_error_t *pc_channel_write_to(pc_channel_t *channel,
 
 /* ### docco on how long this runs. exit conditions. etc.
    ### time type.  */
-pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout, ...);
+pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout);
 
 
 /* Callback should consume @a len bytes of data from the buffer at @a buf.
@@ -382,6 +387,13 @@ typedef pc_error_t *(*pc_channel_error_t)(void *error,
                                           pc_channel_t *channel,
                                           void *baton,
                                           pc_pool_t *pool);
+
+
+/* ### we need to investigate how to minimize the per-channel memory.
+   ### for the C10k problem, we want to minimize. one easy option would
+   ### be sharing a baton across all channel callbacks. a bit harder (or
+   ### possibly just harder to use) is a vtable of callbacks and flags
+   ### denoting which conditions are desired.  */
 
 
 /* When the item has data, the callback will be invoked.

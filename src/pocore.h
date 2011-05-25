@@ -157,6 +157,12 @@ struct pc_context_s {
        - pc_atomic_once()
     */
     pc_mutex_t *general_mutex;
+
+    /* Some context specific to the channel subsystem. This lets us keep
+       a lot of implementation-specific detail out of the primary context
+       structure. We can also tell *if* the subsystem has been initialized
+       since this starts as NULL.  */
+    struct pc__channel_ctx_s *cctx;
 };
 
 
@@ -312,6 +318,10 @@ void pc__track_this_pool(pc_pool_t *pool);
 
 /* Lazy-initialize the mutex within CTX.  */
 void pc__context_init_mutex(pc_context_t *ctx);
+
+
+/* Clean up the channel context.  */
+void pc__channel_cleanup(pc_context_t *ctx);
 
 
 /* Convert errno (### Windows equivalent!) into a pc_error_t.  */
