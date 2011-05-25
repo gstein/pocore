@@ -163,13 +163,6 @@ struct pc_context_s {
        structure. We can also tell *if* the subsystem has been initialized
        since this starts as NULL.  */
     struct pc__channel_ctx_s *cctx;
-
-    /* A pool that can be used internally for scratch work. Functions
-       that use this should clear it before returning. This should NOT
-       be used where control may return to the application through a
-       callback. If the app called back into PoCore and some function
-       cleared it early... Oops.  */
-    pc_pool_t *scratch_pool;
 };
 
 
