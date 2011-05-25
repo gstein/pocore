@@ -151,6 +151,9 @@ void pc_error_handled(pc_error_t *error)
 {
     struct pc_error_list_s *link;
 
+    if (error == NULL)
+        return;
+
     if (!error->ctx->track_unhandled)
     {
         /* Just free the structures and get outta here.  */
@@ -365,6 +368,9 @@ pc_error_t *pc__error_wrap_internal(int code,
                                     const char *file,
                                     int lineno)
 {
+    /* ### some PC_DEBUG magic?  */
+    assert(original != NULL);
+
     unlink_wrapped(original, file, lineno);
 
     return create_error(original->ctx, code, msg, file, lineno, original);
@@ -376,15 +382,21 @@ pc_error_t *pc__error_join_internal(pc_error_t *error,
                                     const char *file,
                                     int lineno)
 {
-    pc_error_t *scan;
+    if (separate != NULL)
+    {
+        pc_error_t *scan;
 
-    unlink_wrapped(separate, file, lineno);
+        unlink_wrapped(separate, file, lineno);
 
-    /* Hook SEPARATE onto the end of the chain of ERROR's SEPARATE errors.  */
-    scan = scan_useful(error);
-    while (scan->separate != NULL)
-        scan = error->separate;
-    scan->separate = separate;
+        /* Hook SEPARATE onto the end of the chain of ERROR's
+           SEPARATE errors.  */
+        scan = scan_useful(error);
+        while (scan->separate != NULL)
+            scan = error->separate;
+        scan->separate = separate;
+    }
+    else if (error == NULL)
+        return NULL;
 
     /* Wrap a trace record to annotate where the join happened.  */
     return pc__error_trace_internal(error, file, lineno);

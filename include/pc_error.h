@@ -39,8 +39,6 @@ extern "C" {
    ### libraries that it uses. but the two libraries are independent,
    ### and may conflict.  */
 
-/* ### what to do with error->separate?  */
-
 #define PC_SUCCESS 0
 #define PC_ERR_TRACE  100  /* ### figure out numbering scheme  */
 #define PC_ERR_IMPROPER_UNHANDLED_CALL 101
@@ -49,6 +47,7 @@ extern "C" {
 #define PC_ERR_IMPROPER_CLEANUP 104
 #define PC_ERR_NOT_REGISTERED 105
 #define PC_ERR_UNSPECIFIED_OS 106
+#define PC_ERR_IMPROPER_REENTRY 107
 
 
 /* Create an error object, associated with CTX.  */
@@ -73,7 +72,7 @@ extern "C" {
                                    __FILE__, __LINE__, __VA_ARGS__)
 
 
-/* Wrap an error with further information.  */
+/* Wrap an error with further information. @a original must not be NULL.  */
 #define pc_error_wrap(code, msg, original) \
     pc__error_wrap_internal(code, msg, original, __FILE__, __LINE__)
 
@@ -84,24 +83,31 @@ extern "C" {
    "original" chain.
 
    ERROR will be returned, wrapped in a PC_ERR_TRACE error to indicate
-   where the two errors were joined.  */
+   where the two errors were joined.
+
+   If ERROR is NULL, then SEPARATE will be returned (with the trace wrapper).
+   If SEPARATE is NULL, then ERROR will be returned (with the trace wrapper).
+   If ERROR and SEPARATE are NULL, then NULL is returned.
+*/
 #define pc_error_join(error, separate) \
     pc__error_join_internal(error, separate, __FILE__, __LINE__)
 
 
-/* Add a stacktrace wrapper, if the context has tracing enabled.  */
+/* Add a stacktrace wrapper, if the context has tracing enabled. If
+   ORIGINAL is NULL, then NULL will be returned.  */
 #define pc_error_trace(original) \
     pc__error_trace_internal(original, __FILE__, __LINE__)
 
 
 /* Mark ERROR as handled, along with all of its wrapped and joined
-   errors. ERROR will be unusable after this call.  */
+   errors. ERROR will be unusable after this call. ERROR may be NULL.  */
 void pc_error_handled(pc_error_t *error);
 
 
 /* Return ERROR's useful code value. Any tracing errors will be skipped until
-   a non-tracing error is located in the ORIGINAL chain. If there are no
-   errors (which should not happen), then PC_SUCCESS will be returned.  */
+   a non-tracing error is located in the ORIGINAL chain. If ERROR is NULL,
+   or there are no errors (which should not happen), then PC_SUCCESS will
+   be returned.  */
 int pc_error_code(const pc_error_t *error);
 
 
@@ -111,21 +117,22 @@ int pc_error_code(const pc_error_t *error);
    if nothing was associated and no default is available.
 
    Note that tracing errors will be skipped -- this message will come from
-   the first useful (non-tracing) error found on the ORIGINAL chain. If no
-   original error is found, then NULL will be returned.  */
+   the first useful (non-tracing) error found on the ORIGINAL chain. If ERROR
+   is NULL or no original error is found, then NULL will be returned.  */
 const char *pc_error_message(const pc_error_t *error);
 
 
-/* Get the ORIGINAL error that ERROR is wrapping. NULL is returned if there
-   is no ORIGINAL error (which shouldn't happen, but is possible if the
-   very first error raised is PC_ERR_TRACE).
+/* Get the ORIGINAL error that ERROR is wrapping. If ERROR is NULL, then
+   NULL is returned. If there is no ORIGINAL error (which shouldn't happen,
+   but is possible if the very first error raised is PC_ERR_TRACE).
 
    Tracing errors will be skipped.  */
 pc_error_t *pc_error_original(const pc_error_t *error);
 
 
-/* Get the SEPARATE error that is associated with ERROR. NULL is returned if
-   there is no original error, or if there is no SEPARATE error.
+/* Get the SEPARATE error that is associated with ERROR. NULL is returned
+   if ERROR is NULL, there is no original error, or if there is no
+   SEPARATE error.
 
    Tracing errors will be skipped on ERROR, and on SEPARATE before it is
    returned.  */
