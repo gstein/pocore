@@ -21,6 +21,7 @@
 #include <sys/socket.h>  /* for AF_*, SOCK_*  */
 #include <netinet/in.h>  /* for IPPROTO_*  */
 #include <netinet/tcp.h>  /* for TCP_NODELAY  */
+#include <arpa/inet.h>  /* for inet_ntop()  */
 #include <netdb.h>  /* for getaddrinfo()  */
 #include <fcntl.h>
 #include <unistd.h>
@@ -634,7 +635,22 @@ pc_error_t *pc_address_lookup(pc_hash_t **addresses,
 const char *pc_address_readable(const pc_address_t *address,
                                 pc_pool_t *pool)
 {
-    return NULL;
+    if (address->a.inet.ss_family == AF_INET)
+    {
+        char buf[INET_ADDRSTRLEN];
+
+        if (inet_ntop(AF_INET,
+                      &((struct sockaddr_in *)&address->a.inet)->sin_addr,
+                      buf, sizeof(buf)) == NULL)
+        {
+            /* ### record the runtime error somehow.  */
+            return "<error>";
+        }
+
+        return pc_strdup(pool, buf);
+    }
+
+    NOT_IMPLEMENTED();
 }
 
 
