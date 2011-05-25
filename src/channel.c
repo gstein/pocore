@@ -114,7 +114,7 @@ struct pc_listener_s {
 
 struct pc_address_s {
     union {
-        struct sockaddr_in inet;
+        struct sockaddr_storage inet;
     } a;
 };
 
