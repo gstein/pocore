@@ -22,6 +22,7 @@
 #define POCORE_H
 
 #include <stdlib.h>  /* for abort() in NOT_IMPLEMENTED()  */
+#include <stdio.h>  /* for fprintf() in PC_DBG()  */
 
 #include "pc_types.h"
 #include "pc_mutex.h"
@@ -57,6 +58,12 @@ extern "C" {
 
 /* For areas that aren't implemented yet...  */
 #define NOT_IMPLEMENTED()  abort()
+
+
+#define PC_DBG(fmt, ...) fprintf(stderr, "DBG: %s:%d: " fmt "\n", \
+                                 __FILE__, __LINE__, __VA_ARGS__)
+#define PC_DBG0(msg) fprintf(stderr, "DBG: %s:%d: %s\n", \
+                             __FILE__, __LINE__, (msg))
 
 
 struct pc_tracklist_s {
