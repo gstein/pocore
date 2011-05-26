@@ -738,6 +738,9 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
     /* Install the back-reference, for use in the callbacks.  */
     (*channel)->watcher.data = *channel;
 
+    /* ### we should track this channel for auto-cleanup when the
+       ### context (and the CCTX pool is cleaned up).  */
+
     return PC_NO_ERROR;
 
   error_close:
