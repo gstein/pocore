@@ -250,8 +250,17 @@ perform_read(pc_channel_t *channel)
             rb->next = channel->ctx->cctx->avail;
             channel->ctx->cctx->avail = rb;
 
-            /* We will treat "read no data" the same as EAGAIN.  */
-            if (amt == 0 || errno == EAGAIN || errno == EWOULDBLOCK)
+            if (amt == 0)
+            {
+                /* The other end closed the socket -- we just hit EOF.
+
+                   ### signal the app somehow.
+                   ### for now, turn off reading.  */
+                channel->read_cb = NULL;
+                return TRUE;
+            }
+
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
                 /* Tell the callback that we are done for the moment.  */
                 err = channel->read_cb(&consumed,
@@ -663,6 +672,7 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
     int fd;
     int sktflags;
     pc_error_t *err;
+    const char *msg;
 
     /* ### validate the addresses as INET  */
 
@@ -679,7 +689,10 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
     /* ### some platforms might not have O_NONBLOCK  */
     sktflags |= O_NONBLOCK;
     if (fcntl(fd, F_SETFL, sktflags) == -1)
+    {
+        msg = "unable to set non-blocking";
         goto error_close;
+    }
 
     /* Unless the caller requests it, disable Nagle's algorithm.  */
     if (!(flags & PC_CHANNEL_USE_NAGLE))
@@ -688,19 +701,31 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
 
         if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
                        &disable, sizeof(disable)) == -1)
+        {
+            msg = "unable to disable Nagle's algorithm";
             goto error_close;
+        }
     }
 
     if (source != NULL)
     {
         if (bind(fd, (struct sockaddr *)&source->a.inet,
-                 sizeof(source->a.inet)) == -1)
+                 source->a.inet.ss_len) == -1)
+        {
+            msg = "unable to bind source address";
             goto error_close;
+        }
     }
 
     if (connect(fd, (struct sockaddr *)&destination->a.inet,
-                sizeof(destination->a.inet)) == -1)
-        goto error_close;
+                destination->a.inet.ss_len) == -1)
+    {
+        if (errno != EINPROGRESS)
+        {
+            msg = "problem with connecting";
+            goto error_close;
+        }
+    }
 
     *channel = pc_calloc(ctx->cctx->pool, sizeof(**channel));
     (*channel)->ctx = ctx;
@@ -711,18 +736,18 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
     ev_io_init(&(*channel)->watcher, channel_is_usable, fd, 0);
 
     /* Install the back-reference, for use in the callbacks.  */
-    (*channel)->watcher.data = channel;
+    (*channel)->watcher.data = *channel;
 
     return PC_NO_ERROR;
 
   error_close:
     /* Generate an error and close the file descriptor we opened.  */
-    err = pc__convert_os_error(ctx);
+    err = pc_error_wrap(PC_ERR_TRACE, msg, pc__convert_os_error(ctx));
 
     if (close(fd) == -1)
         err = pc_error_join(err, pc__convert_os_error(ctx));
 
-    return pc_error_trace(err);
+    return err;
 }
 
 
@@ -780,6 +805,9 @@ void pc_channel_destroy(pc_channel_t *channel)
 
     /* Make sure that we stop the watcher, to avoid confusing libevn.  */
     ev_io_stop(channel->ctx->cctx->loop, &channel->watcher);
+
+    /* Done with the socket.  */
+    (void) close(channel->fd);
 
     /* ### find pending read buffers and return them to the cctx.  */
 
