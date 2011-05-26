@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdarg.h>
+#include <errno.h>
 
 #include "pc_types.h"
 #include "pc_memory.h"
@@ -240,12 +241,16 @@ pc_error_t *pc_error_separate(const pc_error_t *error)
 
 void pc_error_trace_info(const char **file,
                          int *lineno,
+                         int *code,
+                         const char **msg,
                          const pc_error_t **original,
                          const pc_error_t **separate,
                          const pc_error_t *error)
 {
     *file = error->file;
     *lineno = error->lineno;
+    *code = error->code;
+    *msg = error->msg;
     *original = error->original;
     *separate = error->separate;
 }
@@ -432,7 +437,7 @@ pc_error_t *
 pc__convert_os_error(pc_context_t *ctx)
 {
     /* ### examine errno  */
-    return pc_error_create(ctx, PC_ERR_UNSPECIFIED_OS, NULL);
+    return pc_error_create(ctx, PC_ERR_UNSPECIFIED_OS, strerror(errno));
 }
 
 #endif /* PC__IS_WINDOWS  */

@@ -142,12 +142,15 @@ pc_error_t *pc_error_separate(const pc_error_t *error);
 
 
 /* For producing tracebacks, this will return the FILE and LINENO for an
-   error, including traceback information. *ORIGINAL will provide the next
-   step in the chain, and will be set to NULL when no further frames are
-   present. *SEPARATE will provide the associated error from this frame,
-   without skipping trace errors (like pc_error_separate does).  */
+   error, its key information (without skipping trace records), and the
+   continuing linked errors. *ORIGINAL will provide the nextstep in the
+   chain, and will be set to NULL when no further frames are present.
+   *SEPARATE will provide the associated error from this frame, without
+   skipping trace errors (like pc_error_separate does).  */
 void pc_error_trace_info(const char **file,
                          int *lineno,
+                         int *code,
+                         const char **msg,
                          const pc_error_t **original,
                          const pc_error_t **separate,
                          const pc_error_t *error);
