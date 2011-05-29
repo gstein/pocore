@@ -201,6 +201,11 @@ dump_error(const pc_error_t *error)
 }
 
 
+static void usage()
+{
+    printf("Usage: test_wget url\n");
+}
+
 int main(int argc, const char **argv)
 {
     pc_context_t *ctx = pc_context_create();
@@ -216,6 +221,11 @@ int main(int argc, const char **argv)
     pc_channel_t *channel;
     struct channel_baton_s cb = { 0 };
 
+    if (argc < 2)
+    {
+        usage();
+        return EXIT_FAILURE;
+    }
     pc_context_tracing(ctx, TRUE);
 
     parse_url(&scheme, &host, &port, &path, argv[1], pool);
