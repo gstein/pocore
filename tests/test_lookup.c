@@ -25,6 +25,7 @@
 #include "pc_misc.h"
 #include "pc_memory.h"
 #include "pc_channel.h"
+#include "pc_error.h"
 
 
 int main(int argc, const char **argv)
