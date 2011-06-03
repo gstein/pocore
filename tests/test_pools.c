@@ -27,7 +27,7 @@
 
 int main(int argc, const char **argv)
 {
-    pc_context_t *ctx = pc_context_create(8192, NULL);
+    pc_context_t *ctx = pc_context_create();
     pc_pool_t *pool = pc_pool_root(ctx);
     pc_pool_t *subpool = pc_pool_create(pool);
 

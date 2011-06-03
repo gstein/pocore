@@ -18,6 +18,7 @@
   ====================================================================
 */
 
+#include <sys/types.h>
 #include <sys/socket.h>  /* for AF_*, SOCK_*  */
 #include <netinet/in.h>  /* for IPPROTO_*  */
 #include <netinet/tcp.h>  /* for TCP_NODELAY  */

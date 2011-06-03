@@ -20,6 +20,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "pc_types.h"
 #include "pc_misc.h"
@@ -194,7 +195,7 @@ dump_error(const pc_error_t *error)
         {
             /* ### there is a whole chain of SEPARATE issues, and we could
                ### also print out FILE and LINENO. just go simple.  */
-            fprintf(stderr, "-- also: [%s] %s\n",
+            fprintf(stderr, "-- also: [%d] %s\n",
                     pc_error_code(separate), pc_error_message(separate));
         }
     }
