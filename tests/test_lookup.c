@@ -47,7 +47,7 @@ int main(int argc, const char **argv)
          hi != NULL;
          hi = pc_hiter_next(hi))
     {
-        printf("result: %s\n", pc_hiter_key(hi));
+        printf("result: %s\n", (char *)pc_hiter_key(hi));
     }
 
     return EXIT_SUCCESS;
