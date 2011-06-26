@@ -42,6 +42,13 @@
 #include "pocore.h"
 
 
+/* ### some handy information on (unix) sockets:
+   ###   http://www.retran.com/beej/inet_ntopman.html
+   ###   http://www.retran.com/beej/sockaddr_inman.html
+   ###   http://cr.yp.to/docs/connect.html
+   ###   http://msdn.microsoft.com/en-us/library/ms738547%28VS.85%29.aspx
+*/
+
 typedef struct read_buffer_s read_buffer_t;
 
 
