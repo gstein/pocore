@@ -1,5 +1,5 @@
 
-env = Environment(CCFLAGS=['-g', '-O2', '-Wall'],
+env = Environment(CCFLAGS=['-g', '-O2', '-Wall', '-Wno-strict-aliasing'],
                   CPPPATH=['include', '../libev-4.04'])
 
 env.Library('libpc-0', Glob('src/*.c'))
