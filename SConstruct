@@ -1,19 +1,30 @@
 import sys
 import os
 
+opts = Variables()
+opts.Add(PathVariable('PREFIX',
+                      'Directory to install under',
+                      '/usr/local',
+                      PathVariable.PathIsDir))
+
 ### do some searching or a param or something. future.
 LIBEV_DIR = '../libev-4.04'
 
-env = Environment(CCFLAGS=['-g', '-O2', '-Wall', ],
+env = Environment(variables=opts,
+                  CCFLAGS=['-g', '-O2', '-Wall', ],
                   CPPPATH=['include', LIBEV_DIR, ])
+
+Help(opts.GenerateHelpText(env))
 
 SOURCES = Glob('src/*.c')
 if sys.platform.startswith('linux'):
   SOURCES.append('src/platform/linux.c')
 
-env.Library('libpc-0', SOURCES)
+lib_static = env.StaticLibrary('libpc-0', SOURCES)
+lib_shared = env.SharedLibrary('libpc-0', SOURCES)
+Default(lib_static, lib_shared)
 
-if not env.GetOption('clean'):
+if not (env.GetOption('clean') or env.GetOption('help')):
   conf = Configure(env)
 
   # FreeBSD puts the ceil() funcion into -lm. This function is used by
