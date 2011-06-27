@@ -1,8 +1,17 @@
+import sys
+import os
 
-env = Environment(CCFLAGS=['-g', '-O2', '-Wall', '-Wno-strict-aliasing'],
-                  CPPPATH=['include', '../libev-4.04'])
+### do some searching or a param or something. future.
+LIBEV_DIR = '../libev-4.04'
 
-env.Library('libpc-0', Glob('src/*.c'))
+env = Environment(CCFLAGS=['-g', '-O2', '-Wall', ],
+                  CPPPATH=['include', LIBEV_DIR, ])
+
+SOURCES = Glob('src/*.c')
+if sys.platform.startswith('linux'):
+  SOURCES.append('src/platform/linux.c')
+
+env.Library('libpc-0', SOURCES)
 
 if not env.GetOption('clean'):
   conf = Configure(env)
@@ -19,13 +28,14 @@ if not env.GetOption('clean'):
 TEST_PROGRAMS = [
   'tests/test_hash.c',
   'tests/test_lookup.c',
-  'tests/test_memtree.c',
   'tests/test_pools.c',
   'tests/test_wget.c',
 ]
+if sys.platform == 'darwin':
+  TEST_PROGRAMS.append('tests/test_memtree.c')
 
-env.Prepend(LIBS=['libpc-0', 'libev'],
-            LIBPATH=['.'])
+env.Prepend(LIBS=['libpc-0', 'libev', ],
+            LIBPATH=['.', os.path.join(LIBEV_DIR, '.libs'), ])
 
 for proggie in TEST_PROGRAMS:
   env.Program(proggie)
