@@ -718,7 +718,7 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
     if (source != NULL)
     {
         if (bind(fd, (struct sockaddr *)&source->a.inet,
-                 source->a.inet.ss_len) == -1)
+                 PC__SOCKADDR_LEN(&source->a.inet)) == -1)
         {
             msg = "unable to bind source address";
             goto error_close;
@@ -726,7 +726,7 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
     }
 
     if (connect(fd, (struct sockaddr *)&destination->a.inet,
-                destination->a.inet.ss_len) == -1)
+                PC__SOCKADDR_LEN(&destination->a.inet)) == -1)
     {
         if (errno != EINPROGRESS)
         {
