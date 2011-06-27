@@ -1,7 +1,26 @@
 ### todo...
 
 
-DEPENDENCIES
+1. DEPENDENCIES
+
+1.1. SCons build system
+
+### I've always built with the scons-local package. I'm not sure how
+### things look if scons is installed on the system. Here are the
+### directions for using scons-local.
+
+Fetch the scons-local package:
+  http://prdownloads.sourceforge.net/scons/scons-local-2.0.1.tar.gz
+
+Unpack this into the trunk directory (ie. scons.py should be a sibling
+of the SConstruct file).
+
+To build PoCore:
+
+$ ./scons.py
+
+
+1.2. C99 compliance
 
 PoCore generally wants a C99-compliant environment, but uses
 C89-compliant code (to support Microsoft compilers). Some specific
@@ -16,4 +35,10 @@ this page: http://en.wikipedia.org/wiki/Stdint.h
 ### suitable copy?
 
 
-...
+1.3. libev
+
+Fetch a (recent) version of libev from:
+  http://dist.schmorp.de/libev/
+
+### not sure what our minimum version should be right now
+### where to place this?
