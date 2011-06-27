@@ -115,13 +115,15 @@ read_channel(ssize_t *consumed,
              void *baton,
              pc_pool_t *pool)
 {
+    ssize_t unused;
+
     if (buf == NULL)
     {
         *consumed = PC_CONSUMED_CONTINUE;
         return PC_NO_ERROR;
     }
 
-    write(1 /* stdout */, buf, len);
+    unused = write(1 /* stdout */, buf, len);
     *consumed = len;
 
     return PC_NO_ERROR;
