@@ -115,6 +115,8 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
 
     /* ### align these sizeof values?  */
 
+    /* ### build a new memroot.  */
+
     pool = (pc_pool_t *)((char *)block + sizeof(*block));
     memset(pool, 0, sizeof(*pool));
 
@@ -123,7 +125,18 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
     pool->first_block = block;
     pool->ctx = ctx;
 
+    /* ### need to remember this pool, and destroy it at ctx destroy.
+       ### see above memroot and ctx->roots.  */
+
     return pool;
+}
+
+
+pc_pool_t *pc_pool_root_custom(pc_context_t *ctx,
+                               size_t stdsize)
+{
+    /* ### build a new memroot.  */
+    NOT_IMPLEMENTED();
 }
 
 

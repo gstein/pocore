@@ -39,6 +39,9 @@ extern "C" {
 
 pc_pool_t *pc_pool_root(pc_context_t *ctx);
 
+pc_pool_t *pc_pool_root_custom(pc_context_t *ctx,
+                               size_t stdsize);
+
 pc_pool_t *pc_pool_create(pc_pool_t *parent);
 
 pc_pool_t *pc_pool_create_coalescing(pc_pool_t *pool);

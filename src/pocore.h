@@ -112,9 +112,13 @@ struct pc_block_s {
 struct pc_error_list_s;
 
 
-struct pc_context_s {
-    /* ### return values: try one more time. return NULL. abort.  */
-    int (*oom_handler)(size_t amt);
+/* ### need to document: creating multiple roots will divide the
+   ###   std_blocks across those roots. for the best sharing of
+   ###   already-allocated memory, it will be best to create as few
+   ###   root pools as possible.  */
+struct pc_memroot_s {
+    /* The root of the pool tree using this particular configuration.  */
+    pc_pool_t *pool;
 
     /* When grabbing memory from the OS, what is the "standard size" to
        grab each time?  */
@@ -123,8 +127,39 @@ struct pc_context_s {
     /* A linked-list of available standard-sized blocks to use.  */
     struct pc_block_s *std_blocks;
 
-    /* A tree of non-standard-sized blocks (ie. larger than STDSIZE). These
-       are available for use on a best-fit basis.  */
+    /* The context maintains a list of roots. This connects the list.  */
+    struct pc_memroot_s *next;
+};
+
+
+struct pc_context_s {
+    /* ### return values: try one more time. return NULL. abort.  */
+    int (*oom_handler)(size_t amt);
+
+#ifndef FIX_CODE_TO_USE_MEMROOT
+    /* When grabbing memory from the OS, what is the "standard size" to
+       grab each time?  */
+    size_t stdsize;
+
+    /* A linked-list of available standard-sized blocks to use.  */
+    struct pc_block_s *std_blocks;
+#endif
+
+    /* All the root pools allocated by this context.  */
+    struct pc_memroot_s *roots;
+
+    /* A tree of non-standard-sized blocks. These are available for use
+       on a best-fit basis.
+
+       Different pool trees have a variant idea of what "standard" size
+       means. It is entirely possible that a block within this memtree
+       is smaller or equal to what a specific pool considers "standard".
+       However, those pools with a larger stdsize will never ask for these
+       smaller blocks. Thus, this tree will have some natural partitioning
+       across pools' stdsize values. Small-stdsize pools may request a
+       non-standard size, and they will locate those from "all" the various
+       pools in the context. Sort of a universal-donor versus
+       universal-recipient process occurring here.  */
     struct pc_memtree_s *nonstd_blocks;
 
     /* ### chained hashes to prevent realloc? subpool for this?
@@ -198,6 +233,9 @@ struct pc_pool_s {
 
     /* The context this pool is associated with.  */
     struct pc_context_s *ctx;
+
+    /* The root of this tree of pools, specifying our configuration.  */
+    struct pc_memroot_s *root;
 
     /* The parent of this pool.  */
     struct pc_pool_s *parent;
