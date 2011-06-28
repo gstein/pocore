@@ -29,7 +29,7 @@
 
 pc_context_t *pc_context_create(void)
 {
-    return pc_context_create_custom(0, NULL, TRUE);
+    return pc_context_create_custom(PC_DEFAULT_STDSIZE, NULL, TRUE);
 }
 
 
