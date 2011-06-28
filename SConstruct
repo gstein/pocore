@@ -45,8 +45,7 @@ TEST_PROGRAMS = [
 if sys.platform == 'darwin':
   TEST_PROGRAMS.append('tests/test_memtree.c')
 
-env.Prepend(LIBS=['libpc-0', 'libev', ],
-            LIBPATH=['.', os.path.join(LIBEV_DIR, '.libs'), ])
-
 for proggie in TEST_PROGRAMS:
-  env.Program(proggie)
+  env.Program(proggie,
+              LIBS=['libpc-0', 'libev', ],
+              LIBPATH=['.', os.path.join(LIBEV_DIR, '.libs'), ])
