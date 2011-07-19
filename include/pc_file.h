@@ -42,7 +42,8 @@ typedef struct pc_file_s pc_file_t;
                                         for writing:  */
 #define PC_FILE_OPEN_WRITE    0x0002 /* must exist.  */
 #define PC_FILE_OPEN_TRUNCATE 0x0003 /* truncated to 0 length. must exist.  */
-#define PC_FILE_OPEN_APPEND   0x0004 /* seek to EOF. must exist. see notes.  */
+#define PC_FILE_OPEN_APPEND   0x0004 /* writes always append. non-seekable.
+                                        must exist. see notes.  */
 #define PC_FILE_OPEN_CREATE   0x0005 /* create if needed.  */
 #define PC_FILE_OPEN_EXCL     0x0006 /* error if it exists.  */
 #define PC_FILE_OPEN_DELCLOSE 0x0007 /* must not exist. delete when closed.  */
@@ -50,10 +51,9 @@ typedef struct pc_file_s pc_file_t;
 /* Other miscellaneous flags.  */
 #define PC_FILE_OPEN_TEXT     0x0010 /* text mode (on Windows).  */
 
-/* Note: APPEND will seek to the end of the file once it has been opened
-   for writing. This is NOT the same as the POSIX O_APPEND mode. Future
-   seeks or other processes could cause a write mid-file.
-   ### is this behavior okay? can we do an append-only mode on Windows?  */
+/* Note: APPEND will use the POSIX O_APPEND mode, or FILE_APPEND_DATA
+   on Windows. All writes will occur at the end of the file. Files in
+   this mode are not seekable, so a read will always return EOF.  */
 
 
 /* Create a new file object, returned in *NEW_FILE. It will be opened on
@@ -108,6 +108,11 @@ pc_error_t *pc_file_write(size_t *amt_written,
 pc_error_t *pc_file_get_position(int64_t *position,
                                  pc_file_t *file,
                                  pc_pool_t *pool);
+
+/* ### docco
+
+   @note: files in APPEND mode are not seekable. Using this function
+   will return PC_ERR_???  */
 pc_error_t *pc_file_set_position(pc_file_t *file,
                                  int64_t position,
                                  pc_pool_t *pool);

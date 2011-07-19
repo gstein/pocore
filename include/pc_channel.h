@@ -311,6 +311,12 @@ pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout);
    desire to read from the underlying source. In all other cases, the
    event system will turn off the readiness indicator for reading.
 
+   ### note: consider moving case (2) and PC_CONSUMED_* to a separate
+   ### callback with an enumerated return value. something like
+   ### pc_channel_read_paused_t or something. or maybe eof_t with a
+   ### discriminator between "no network data *now*" and "the other
+   ### end closed writing, so this is EOF."
+
    The callback may use @a pool for temporary allocations. It will be
    cleared after every invocation of the callback.
 
@@ -362,6 +368,9 @@ typedef pc_error_t *(*pc_channel_readable_t)(ssize_t *consumed,
    The callback may use @a pool for temporary allocations. It will be
    cleared after every invocation of the callback.
 
+   @note: @a iov should NOT be allocated within @a pool. The content must
+   live much longer.
+
    ### more
 
    ### need dgram version
@@ -374,6 +383,9 @@ typedef pc_error_t *(*pc_channel_writeable_t)(struct iovec **iov,
 
 /* ### what to do here? the kinds of errors are scarily broad in scope.
    ### can we encapsulate all exceptions into this callback?
+
+   ### see the idea for pc_channel_eof_t up in the readable_t docstring.
+   ### that may be a way to signal standard channel closure.
 
    ### pass one to desire_read and desire_write?
    ### maybe associate a triple-callback with CHANNEL, and then have
