@@ -267,3 +267,10 @@ pc_error_t *pc_file_set_position(pc_file_t *file,
 {
     NOT_IMPLEMENTED();
 }
+
+
+void pc_file_shift(pc_file_t *file,
+                   pc_pool_t *new_pool)
+{
+    NOT_IMPLEMENTED();
+}

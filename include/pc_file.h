@@ -50,6 +50,7 @@ typedef struct pc_file_s pc_file_t;
 
 /* Other miscellaneous flags.  */
 #define PC_FILE_OPEN_TEXT     0x0010 /* text mode (on Windows).  */
+#define PC_FILE_NO_TRACK      0x0020 /* do not register for tracking.  */
 
 /* Note: APPEND will use the POSIX O_APPEND mode, or FILE_APPEND_DATA
    on Windows. All writes will occur at the end of the file. Files in
@@ -58,6 +59,11 @@ typedef struct pc_file_s pc_file_t;
 
 /* Create a new file object, returned in *NEW_FILE. It will be opened on
    PATH according to FLAGS. The object will be allocated within POOL.
+
+   ### fix the code. we want to register by default. use NO_TRACK otherwise.
+   ### register a dep on the CTX. if it doesn't get tossed before then
+   ### (ie. track against a pool or other that dies before the CTX), then
+   ### an error should be registered.
 
    The file object is NOT registered for tracking.  */
 pc_error_t *pc_file_create(pc_file_t **new_file,
@@ -119,6 +125,15 @@ pc_error_t *pc_file_set_position(pc_file_t *file,
 
 
 /* ### locking?  */
+
+
+/* Shift the responsibility for the underlying file from its current
+   lifetime and context ownership into a new lifetime/context.
+
+   ### the file must have no dependents
+   ### errors possible?  */
+void pc_file_shift(pc_file_t *file,
+                   pc_pool_t *new_pool);
 
 
 /*
