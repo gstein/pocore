@@ -1,3 +1,5 @@
+# -*- python -*-
+
 import sys
 import os
 
@@ -8,7 +10,7 @@ opts.Add(PathVariable('PREFIX',
                       PathVariable.PathIsDir))
 
 ### do some searching or a param or something. future.
-LIBEV_DIR = '../libev-4.04'
+LIBEV_DIR = '../../libev-4.04'
 
 env = Environment(variables=opts,
                   CCFLAGS=['-g', '-O2', '-Wall', ],
@@ -16,13 +18,17 @@ env = Environment(variables=opts,
 
 Help(opts.GenerateHelpText(env))
 
+# Bring in libev.
+### sigh. libtool.
+env.Append(LIBPATH=os.path.join(LIBEV_DIR, '.libs'), LIBS='ev')
+
 SOURCES = Glob('src/*.c')
 if sys.platform.startswith('linux'):
   SOURCES.append('src/platform/linux.c')
 
 lib_static = env.StaticLibrary('libpc-0', SOURCES)
 lib_shared = env.SharedLibrary('libpc-0', SOURCES)
-Default(lib_static, lib_shared)
+env.Default(lib_static, lib_shared)
 
 if not (env.GetOption('clean') or env.GetOption('help')):
   conf = Configure(env)
@@ -36,6 +42,10 @@ if not (env.GetOption('clean') or env.GetOption('help')):
   env = conf.Finish()
 
 
+# TESTS
+
+tenv = env.Clone()
+
 TEST_PROGRAMS = [
   'tests/test_hash.c',
   'tests/test_lookup.c',
@@ -46,6 +56,6 @@ if sys.platform == 'darwin':
   TEST_PROGRAMS.append('tests/test_memtree.c')
 
 for proggie in TEST_PROGRAMS:
-  env.Program(proggie,
-              LIBS=['libpc-0', 'libev', ],
-              LIBPATH=['.', os.path.join(LIBEV_DIR, '.libs'), ])
+  tenv.Program(proggie,
+               LIBS=['libpc-0', 'libev', ],
+               LIBPATH=['.', os.path.join(LIBEV_DIR, '.libs'), ])
