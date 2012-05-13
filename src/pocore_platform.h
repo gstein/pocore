@@ -45,3 +45,10 @@ pc__linux_sockaddr_len(const struct sockaddr_storage *ss);
 #else
 #define PC__SOCKADDR_LEN(ss) ((ss)->ss_len)
 #endif
+
+
+#ifdef PC__IS_WINDOWS
+#define PC__FREE(ctx, p) HeapFree((ctx)->heap, 0, p)
+#else
+#define PC__FREE(ctx, p) free(p)
+#endif

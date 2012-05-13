@@ -136,6 +136,12 @@ struct pc_context_s {
     /* ### return values: try one more time. return NULL. abort.  */
     int (*oom_handler)(size_t amt);
 
+#ifdef PC__IS_WINDOWS
+    /* Each context gets its own custom Heap so that we don't have to
+       deal with the cross-thread mutex in the global heap (malloc).  */
+    HANDLE heap;
+#endif
+
 #ifndef FIX_CODE_TO_USE_MEMROOT
     /* When grabbing memory from the OS, what is the "standard size" to
        grab each time?  */

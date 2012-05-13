@@ -37,14 +37,27 @@ pc_context_t *pc_context_create_custom(size_t stdsize,
                                        int (*oom_handler)(size_t amt),
                                        pc_bool_t track_unhandled)
 {
-    pc_context_t *ctx = malloc(sizeof(*ctx));
+    pc_context_t *ctx;
+
+#ifdef PC__IS_WINDOWS
+    {
+        HANDLE heap;
+
+        heap = HeapCreate(HEAP_NO_SERIALIZE,
+                          0 /* dwInitialSize */,
+                          0 /* dwMaximumSize */);
+        ctx = HeapAlloc(heap, HEAP_ZERO_MEMORY, sizeof(*ctx));
+        ctx->heap = heap;
+    }
+#else
+    ctx = malloc(sizeof(*ctx));
+    memset(ctx, 0, sizeof(*ctx));
+#endif
 
     if (stdsize == PC_DEFAULT_STDSIZE)
         stdsize = PC_MEMBLOCK_SIZE;
     else if (stdsize < PC_MEMBLOCK_MINIMUM)
         stdsize = PC_MEMBLOCK_MINIMUM;
-
-    memset(ctx, 0, sizeof(*ctx));
 
     ctx->oom_handler = oom_handler;
     ctx->stdsize = stdsize;
@@ -71,7 +84,7 @@ void pc_context_destroy(pc_context_t *ctx)
     {
         struct pc_block_s *next = scan->next;
 
-        free(scan);
+        PC__FREE(ctx, scan);
         scan = next;
     }
 
@@ -80,10 +93,14 @@ void pc_context_destroy(pc_context_t *ctx)
         /* Keep fetching the smallest node possible until it runs out.  */
         scan = pc__memtree_fetch(&ctx->nonstd_blocks,
                                  sizeof(struct pc_memtree_s));
-        free(scan);
+        PC__FREE(ctx, scan);
     }
 
+#ifdef PC__IS_WINDOWS
+    HeapDestroy(ctx->heap);
+#else
     free(ctx);
+#endif
 }
 
 

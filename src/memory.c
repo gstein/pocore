@@ -71,13 +71,25 @@
 #endif
 
 
-struct pc_block_s *alloc_block(size_t size)
+#ifdef PC__IS_WINDOWS
+#define ALLOC_BLOCK(ctx, size) alloc_block(ctx, size)
+#else
+#define ALLOC_BLOCK(ctx, size) alloc_block(size)
+#endif
+
+struct pc_block_s *alloc_block(
+#ifdef PC__IS_WINDOWS
+    pc_context_t *ctx,
+#endif
+    size_t size)
 {
     struct pc_block_s *block;
 
     /* ### should get a block from the context. for now: early bootstrap
        ### with a simple malloc.  */
-#if 1
+#ifdef PC__IS_WINDOWS
+    block = HeapAlloc(ctx->heap, 0 /* dwFlags */, size)
+#elif 1
     block = malloc(size);
 #else
     block = mmap(0, size, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);
@@ -99,7 +111,7 @@ struct pc_block_s *get_block(pc_context_t *ctx)
     struct pc_block_s *result;
 
     if (ctx->std_blocks == NULL)
-        return alloc_block(ctx->stdsize);
+        return ALLOC_BLOCK(ctx, ctx->stdsize);
 
     result = ctx->std_blocks;
     ctx->std_blocks = result->next;
@@ -387,7 +399,7 @@ internal_alloc(pc_pool_t *pool, size_t amt)
 
         block = pc__memtree_fetch(&pool->ctx->nonstd_blocks, required);
         if (block == NULL)
-            block = alloc_block(required);
+            block = ALLOC_BLOCK(pool->ctx, required);
 
         block->next = pool->nonstd_blocks;
         pool->nonstd_blocks = block;
