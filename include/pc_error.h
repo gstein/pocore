@@ -37,7 +37,9 @@ extern "C" {
    ### libraries may choose conflicting error spaces. an application
    ### certainly knows about the pocore error space and each of the
    ### libraries that it uses. but the two libraries are independent,
-   ### and may conflict.  */
+   ### and may conflict.
+   ###
+   ### see draft of error mappers below.  */
 
 #define PC_SUCCESS 0
 #define PC_ERR_TRACE  100  /* ### figure out numbering scheme  */
@@ -50,6 +52,41 @@ extern "C" {
 #define PC_ERR_IMPROPER_REENTRY 107
 #define PC_ERR_ADDRESS_LOOKUP 108
 #define PC_ERR_BAD_PARAM 109
+
+/* Error number mapper.  */
+typedef struct pc_errmap_s pc_errmap_t;
+
+#define PC_ERR_MAPPING (-1)
+
+
+/* Construct an error code mapper for this namespace. This will have the
+   same lifetime as CTX. If a mapper for NAMESPACE was created previously,
+   then it will be returned.  */
+const pc_errmap_t *pc_errmap_create(pc_context_t *ctx,
+                                    const char *namespace);
+
+/* Return the namespace defined by this error map.  */
+const char *pc_errmap_namespace(const pc_errmap_t *errmap,
+                                int errval);
+
+/* Map a global error value to a local error code. If the value is not
+   within the namespace defined by this error map, then PC_ERR_MAPPING
+   is returned.  */
+int pc_errmap_code(const pc_errmap_t *errmap,
+                   int errval);
+
+/* Map a global error value to a local error code, regardless of the
+   namespace defined by this error map.  */
+int pc_errmap_code_any(const pc_errmap_t *errmap,
+                       int errval);
+
+/* Map a local error code to a global error value. If CODE is PC_SUCCESS,
+   then PC_SUCCESS will be returned. If CODE is less than zero, then
+   PC_ERR_MAPPING will be returned.  */
+int pc_errmap_errval(const pc_errmap_t *errmap,
+                     int code);
+
+/* ### change the contexts below to error mappers  */
 
 
 /* Create an error object, associated with CTX.  */
@@ -98,7 +135,7 @@ extern "C" {
 /* Add a stacktrace wrapper, if the context has tracing enabled. If
    ORIGINAL is NULL, then NULL will be returned.  */
 #define pc_error_trace(original) \
-    pc__error_trace_internal(original, __FILE__, __LINE__)
+    pc__error_trace_internal((original), __FILE__, __LINE__)
 
 
 /* Mark ERROR as handled, along with all of its wrapped and joined
