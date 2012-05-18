@@ -1,5 +1,5 @@
 /*
-  types.c :  basic PoCore data types
+  hash.c :  the PoCore hash table
 
   ====================================================================
     Copyright 2010 Greg Stein
