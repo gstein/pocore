@@ -95,11 +95,11 @@ pc_context_t *pc_errmap_ctx(const pc_errmap_t *errmap);
 /* ### docco for all the functions below  */
 
 #define pc_error_create_e(emap, code) \
-    pc_error_createf_e(emap, code, "")
+    pc__error_create_internal_e(emap, code, __FILE__, __LINE__)
 #define pc_error_create_xn(ctx, ns, code) \
-    pc_error_createf_xn(ctx, ns, code, "")
+    pc__error_create_internal_xn(ctx, ns, code, __FILE__, __LINE__)
 #define pc_error_create_pn(pool, ns, code) \
-    pc_error_createf_pn(pool, ns, code, "")
+    pc__error_create_internal_pn(pool, ns, code, __FILE__, __LINE__)
 
 #define pc_error_create_em(emap, code, msg) \
     pc_error_createf_e(emap, code, "%s", msg)
@@ -122,19 +122,19 @@ pc_context_t *pc_errmap_ctx(const pc_errmap_t *errmap);
 /* This group takes global error values, which is typically not as
    convenient for applications.  */
 #define pc_error_create_x(ctx, errval) \
-    pc_error_createf_x(ctx, errval, "")
+    pc__error_create_internal_xn(ctx, NULL, errval, __FILE__, __LINE__)
 #define pc_error_create_p(pool, errval) \
-    pc_error_createf_p(pool, errval, "")
+    pc__error_create_internal_pn(ctx, NULL, errval, __FILE__, __LINE__)
 #define pc_error_create_xm(ctx, errval, msg) \
     pc_error_createf_x(ctx, errval, "%s", msg)
 #define pc_error_create_pm(pool, errval, msg) \
     pc_error_createf_p(pool, errval, "%s", msg)
 #define pc_error_createf_x(ctx, errval, format, ...) \
-    pc__error_createf_internal_x(ctx, errval, format, \
-                                 __FILE__, __LINE__, __VA_ARGS__)
+    pc__error_createf_internal_xn(ctx, NULL, errval, format, \
+                                  __FILE__, __LINE__, __VA_ARGS__)
 #define pc_error_createf_p(pool, errval, format, ...) \
-    pc__error_createf_internal_p(pool, errval, format, \
-                                 __FILE__, __LINE__, __VA_ARGS__)
+    pc__error_createf_internal_pn(pool, NULL, errval, format, \
+                                  __FILE__, __LINE__, __VA_ARGS__)
 
 
 /* Annotate an error with further information by inserting a PC_ERR_TRACE
@@ -232,23 +232,24 @@ void pc_error_trace_info(const char **file,
                          const pc_error_t *error);
 
 
-/* Internal constructors. Use pc_error_create() and friends, instead.  */
+/* Internal constructors. Use pc_error_create_*() and friends, instead.  */
+pc_error_t *pc__error_create_internal_e(pc_errmap_t *emap,
+                                        int code,
+                                        const char *file,
+                                        int lineno);
+pc_error_t *pc__error_create_internal_xn(pc_context_t *ctx,
+                                         const char *ns,
+                                         int code,
+                                         const char *file,
+                                         int lineno);
+pc_error_t *pc__error_create_internal_pn(pc_pool_t *pool,
+                                         const char *ns,
+                                         int code,
+                                         const char *file,
+                                         int lineno);
+
 pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
                                          int code,
-                                         const char *format,
-                                         const char *file,
-                                         int lineno,
-                                         ...)
-        __attribute__((format(printf, 3, 6)));
-pc_error_t *pc__error_createf_internal_x(pc_context_t *ctx,
-                                         int errval,
-                                         const char *format,
-                                         const char *file,
-                                         int lineno,
-                                         ...)
-        __attribute__((format(printf, 3, 6)));
-pc_error_t *pc__error_createf_internal_p(pc_pool_t *pool,
-                                         int errval,
                                          const char *format,
                                          const char *file,
                                          int lineno,

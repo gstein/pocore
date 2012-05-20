@@ -58,7 +58,7 @@ remap_code(pc_context_t *ctx,
 {
     pc_errmap_t *emap;
 
-    if (ctx->emaps == NULL)
+    if (ctx->emaps == NULL || ns == NULL)
         return code;
     emap = pc_hash_gets(ctx->emaps, ns);
     if (emap == NULL)
@@ -343,6 +343,38 @@ unlink_wrapped(pc_error_t *error, const char *file, int lineno)
 
 /* Internal constructors. Use pc_error_create() and friends, instead.  */
 
+pc_error_t *pc__error_create_internal_e(pc_errmap_t *emap,
+                                        int code,
+                                        const char *file,
+                                        int lineno)
+{
+    return create_error(emap->ctx, LOOKUP(emap, code), NULL,
+                        file, lineno, NULL);
+}
+
+
+pc_error_t *pc__error_create_internal_xn(pc_context_t *ctx,
+                                         const char *ns,
+                                         int code,
+                                         const char *file,
+                                         int lineno)
+{
+    return create_error(ctx, remap_code(ctx, ns, code), NULL,
+                        file, lineno, NULL);
+}
+
+
+pc_error_t *pc__error_create_internal_pn(pc_pool_t *pool,
+                                         const char *ns,
+                                         int code,
+                                         const char *file,
+                                         int lineno)
+{
+    return create_error(pool->ctx, remap_code(pool->ctx, ns, code), NULL,
+                        file, lineno, NULL);
+}
+
+
 static pc_error_t *
 format_error(pc_context_t *ctx,
              int errval,
@@ -355,9 +387,8 @@ format_error(pc_context_t *ctx,
 
     error = create_error(ctx, errval, NULL, file, lineno, NULL);
 
-    if (format == NULL || format[0] == '\0')
-        error->msg = NULL;
-    else if (format[0] == '%' && format[1] == 's' && format[2] == '\0')
+    /* Fast-path a simple "%s" format.  */
+    if (format[0] == '%' && format[1] == 's' && format[2] == '\0')
         error->msg = pc_strdup(ctx->error_pool, va_arg(ap, const char *));
     else
         error->msg = pc_vsprintf(ctx->error_pool, format, ap);
@@ -379,42 +410,6 @@ pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
     va_start(ap, lineno);
     error = format_error(emap->ctx, LOOKUP(emap, code), format,
                          file, lineno, ap);
-    va_end(ap);
-
-    return error;
-}
-
-
-pc_error_t *pc__error_createf_internal_x(pc_context_t *ctx,
-                                         int errval,
-                                         const char *format,
-                                         const char *file,
-                                         int lineno,
-                                         ...)
-{
-    pc_error_t *error;
-    va_list ap;
-
-    va_start(ap, lineno);
-    error = format_error(ctx, errval, format, file, lineno, ap);
-    va_end(ap);
-
-    return error;
-}
-
-
-pc_error_t *pc__error_createf_internal_p(pc_pool_t *pool,
-                                         int errval,
-                                         const char *format,
-                                         const char *file,
-                                         int lineno,
-                                         ...)
-{
-    pc_error_t *error;
-    va_list ap;
-
-    va_start(ap, lineno);
-    error = format_error(pool->ctx, errval, format, file, lineno, ap);
     va_end(ap);
 
     return error;
@@ -521,7 +516,7 @@ pc_error_t *
 pc__convert_os_error(pc_context_t *ctx)
 {
     /* ### examine ... something  */
-    return pc_error_create(ctx, PC_ERR_UNSPECIFIED_OS, NULL);
+    return pc_error_create_x(ctx, PC_ERR_UNSPECIFIED_OS);
 }
 
 #else /* PC__IS_WINDOWS  */
@@ -530,7 +525,7 @@ pc_error_t *
 pc__convert_os_error(pc_context_t *ctx)
 {
     /* ### examine errno  */
-    return pc_error_create(ctx, PC_ERR_UNSPECIFIED_OS, strerror(errno));
+    return pc_error_create_xm(ctx, PC_ERR_UNSPECIFIED_OS, strerror(errno));
 }
 
 #endif /* PC__IS_WINDOWS  */

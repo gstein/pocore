@@ -190,7 +190,7 @@ void pc_track_deregister(pc_context_t *ctx, const void *tracked)
         /* This tracked item still has owners that depend upon it. It
            should not be deregistered at this time. We create an error
            that will be left on UNHANDLED to signal the problem.  */
-        (void) pc_error_create(ctx, PC_ERR_IMPROPER_DEREGISTER, NULL);
+        PC_UNHANDLED(ctx, PC_ERR_IMPROPER_DEREGISTER);
         return;
     }
 
@@ -242,7 +242,7 @@ void pc_track_dependent(pc_context_t *ctx,
   not_registered:
     /* Create an error that will get left on the UNHANDLED list, to let
        the programmer know they goofed up.  */
-    (void) pc_error_create(ctx, PC_ERR_NOT_REGISTERED, NULL);
+    PC_UNHANDLED(ctx, PC_ERR_NOT_REGISTERED);
 }
 
 
@@ -270,7 +270,7 @@ void pc_track_cleanup(pc_context_t *ctx, const void *tracked)
         /* This tracked item still has owners that depend upon it. It
            should not be cleaned up at this time. We create an error
            that will be left on UNHANDLED to signal the problem.  */
-        (void) pc_error_create(ctx, PC_ERR_IMPROPER_CLEANUP, NULL);
+        PC_UNHANDLED(ctx, PC_ERR_IMPROPER_CLEANUP);
         return;
     }
 

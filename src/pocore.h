@@ -65,9 +65,9 @@ extern "C" {
 #define PC_DBG0(msg) fprintf(stderr, "DBG: %s:%d: %s\n", \
                              __FILE__, __LINE__, (msg))
 
-/* ### temporary until visit all callers and fix them.  */
-#define pc_error_create(x,c,m) pc_error_create_xm(x,c,(const char *)m)
-#define pc_error_wrap(c,m,e) pc_error_annotate(m,e)
+/* When we know the error will be unhandled, use this macro so that we
+   can easily find them.  */
+#define PC_UNHANDLED(ctx, code) ((void) pc_error_create_x(ctx, code))
 
 
 struct pc_tracklist_s {

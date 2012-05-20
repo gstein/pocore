@@ -576,7 +576,7 @@ pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout)
     CHECK_CCTX(ctx);
 
     if (ctx->cctx->running)
-        return pc_error_create(ctx, PC_ERR_IMPROPER_REENTRY, NULL);
+        return pc_error_create_x(ctx, PC_ERR_IMPROPER_REENTRY);
 
     ctx->cctx->running = TRUE;
 
@@ -609,8 +609,8 @@ pc_error_t *pc_address_lookup(pc_hash_t **addresses,
     int rv;
 
     if (port <= 0 || port > 65535)
-        return pc_error_create(pool->ctx, PC_ERR_BAD_PARAM,
-                               "port number out of range");
+        return pc_error_create_xm(pool->ctx, PC_ERR_BAD_PARAM,
+                                  "port number out of range");
     snprintf(portbuf, sizeof(portbuf), "%d", port);
 
     /* ### these are the wrong hints for now, but let's just get started  */
@@ -623,7 +623,7 @@ pc_error_t *pc_address_lookup(pc_hash_t **addresses,
     {
         const char *msg = gai_strerror(rv);
 
-        return pc_error_create(pool->ctx, PC_ERR_ADDRESS_LOOKUP, msg);
+        return pc_error_create_xm(pool->ctx, PC_ERR_ADDRESS_LOOKUP, msg);
     }
 
     *addresses = pc_hash_create(pool);
@@ -753,7 +753,7 @@ pc_error_t *pc_channel_create_tcp(pc_channel_t **channel,
 
   error_close:
     /* Generate an error and close the file descriptor we opened.  */
-    err = pc_error_wrap(PC_ERR_TRACE, msg, pc__convert_os_error(ctx));
+    err = pc_error_annotate(msg, pc__convert_os_error(ctx));
 
     if (close(fd) == -1)
         err = pc_error_join(err, pc__convert_os_error(ctx));
