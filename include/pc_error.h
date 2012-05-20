@@ -52,8 +52,10 @@ extern "C" {
 #define PC_ERR_IMPROPER_REENTRY 107
 #define PC_ERR_ADDRESS_LOOKUP 108
 #define PC_ERR_BAD_PARAM 109
+#define PC_ERR_ANNOTATE 110  /* ### motr eotk needed...  */
 
-/* Error number mapper.  */
+
+/* Error number mapping.  */
 typedef struct pc_errmap_s pc_errmap_t;
 
 #define PC_ERR_MAPPING (-1)
@@ -86,34 +88,59 @@ int pc_errmap_code_any(const pc_errmap_t *errmap,
 int pc_errmap_errval(const pc_errmap_t *errmap,
                      int code);
 
-/* ### change the contexts below to error mappers  */
+/* Return the pocore context associated with the given error map.  */
+pc_context_t *pc_errmap_ctx(const pc_errmap_t *errmap);
 
 
-/* Create an error object, associated with CTX.  */
-#define pc_error_create(ctx, code, msg) \
-    pc__error_create_internal(ctx, code, msg, __FILE__, __LINE__)
+/* ### docco for all the functions below  */
+
+#define pc_error_create_e(emap, code) \
+    pc_error_createf_e(emap, code, "")
+#define pc_error_create_xn(ctx, ns, code) \
+    pc_error_createf_xn(ctx, ns, code, "")
+#define pc_error_create_pn(pool, ns, code) \
+    pc_error_createf_pn(pool, ns, code, "")
+
+#define pc_error_create_em(emap, code, msg) \
+    pc_error_createf_e(emap, code, "%s", msg)
+#define pc_error_create_xnm(ctx, ns, code, msg) \
+    pc_error_createf_xn(ctx, ns, code, "%s", msg)
+#define pc_error_create_pnm(pool, ns, code, msg) \
+    pc_error_createf_pn(pool, ns, code, "%s", msg)
+
+#define pc_error_createf_e(emap, code, format, ...) \
+    pc__error_createf_internal_e(emap, code, format, \
+                                 __FILE__, __LINE__, __VA_ARGS__)
+#define pc_error_createf_xn(ctx, ns, code, format, ...) \
+    pc__error_createf_internal_xn(ctx, ns, code, format, \
+                                  __FILE__, __LINE__, __VA_ARGS__)
+#define pc_error_createf_pn(pool, ns, code, format, ...) \
+    pc__error_createf_internal_pn(pool, ns, code, format, \
+                                  __FILE__, __LINE__, __VA_ARGS__)
 
 
-/* Create an error object, associated with the context implied by POOL.  */
-#define pc_error_create_via(pool, code, msg) \
-    pc__error_create_internal_via(pool, code, msg, __FILE__, __LINE__)
+/* This group takes global error values, which is typically not as
+   convenient for applications.  */
+#define pc_error_create_x(ctx, errval) \
+    pc_error_createf_x(ctx, errval, "")
+#define pc_error_create_p(pool, errval) \
+    pc_error_createf_p(pool, errval, "")
+#define pc_error_create_xm(ctx, errval, msg) \
+    pc_error_createf_x(ctx, errval, "%s", msg)
+#define pc_error_create_pm(pool, errval, msg) \
+    pc_error_createf_p(pool, errval, "%s", msg)
+#define pc_error_createf_x(ctx, errval, format, ...) \
+    pc__error_createf_internal_x(ctx, errval, format, \
+                                 __FILE__, __LINE__, __VA_ARGS__)
+#define pc_error_createf_p(pool, errval, format, ...) \
+    pc__error_createf_internal_p(pool, errval, format, \
+                                 __FILE__, __LINE__, __VA_ARGS__)
 
 
-/* Create an error object, associated with CTX.  */
-#define pc_error_createf(ctx, code, format, ...)  \
-    pc__error_createf_internal(ctx, code, format, \
-                               __FILE__, __LINE__, __VA_ARGS__)
-
-
-/* Create an error object, associated with the context implied by POOL.  */
-#define pc_error_createf_via(pool, code, format, ...)  \
-    pc__error_createf_internal_via(pool, code, format, \
-                                   __FILE__, __LINE__, __VA_ARGS__)
-
-
-/* Wrap an error with further information. @a original must not be NULL.  */
-#define pc_error_wrap(code, msg, original) \
-    pc__error_wrap_internal(code, msg, original, __FILE__, __LINE__)
+/* Annotate an error with further information by inserting a PC_ERR_TRACE
+   with a custom message. If ERROR is NULL, then NULL is returned.  */
+#define pc_error_annotate(msg, error) \
+    pc__error_annotate_internal(msg, error, __FILE__, __LINE__)
 
 
 /* Join SEPARATE onto ERROR. This is used when SEPARATE occurs while
@@ -143,11 +170,18 @@ int pc_errmap_errval(const pc_errmap_t *errmap,
 void pc_error_handled(pc_error_t *error);
 
 
-/* Return ERROR's useful code value. Any tracing errors will be skipped until
-   a non-tracing error is located in the ORIGINAL chain. If ERROR is NULL,
-   or there are no errors (which should not happen), then PC_SUCCESS will
-   be returned.  */
+/* Return ERROR's useful local error code. Any tracing errors will be
+   skipped until a non-tracing error is located in the ORIGINAL chain.
+   If ERROR is NULL, or there are no errors (which should not happen),
+   then PC_SUCCESS will be returned.  */
 int pc_error_code(const pc_error_t *error);
+
+
+/* Return ERROR's useful global error value. Any tracing errors will be
+   skipped until a non-tracing error is located in the ORIGINAL chain.
+   If ERROR is NULL, orthere are no errors (which should not happen),
+   then PC_SUCCESS will be returned.  */
+int pc_error_errval(const pc_error_t *error);
 
 
 /* Return the useful message associated with ERROR. This will live as long
@@ -163,7 +197,8 @@ const char *pc_error_message(const pc_error_t *error);
 
 /* Get the ORIGINAL error that ERROR is wrapping. If ERROR is NULL, then
    NULL is returned. If there is no ORIGINAL error (which shouldn't happen,
-   but is possible if the very first error raised is PC_ERR_TRACE).
+   but is possible if the very first error raised is PC_ERR_TRACE), then
+   NULL will be returned.
 
    Tracing errors will be skipped.  */
 pc_error_t *pc_error_original(const pc_error_t *error);
@@ -178,6 +213,10 @@ pc_error_t *pc_error_original(const pc_error_t *error);
 pc_error_t *pc_error_separate(const pc_error_t *error);
 
 
+/* Return the context this error is associated with.  */
+pc_context_t *pc_error_context(const pc_error_t *error);
+
+
 /* For producing tracebacks, this will return the FILE and LINENO for an
    error, its key information (without skipping trace records), and the
    continuing linked errors. *ORIGINAL will provide the nextstep in the
@@ -186,7 +225,7 @@ pc_error_t *pc_error_separate(const pc_error_t *error);
    skipping trace errors (like pc_error_separate does).  */
 void pc_error_trace_info(const char **file,
                          int *lineno,
-                         int *code,
+                         int *errval,
                          const char **msg,
                          const pc_error_t **original,
                          const pc_error_t **separate,
@@ -194,35 +233,48 @@ void pc_error_trace_info(const char **file,
 
 
 /* Internal constructors. Use pc_error_create() and friends, instead.  */
-pc_error_t *pc__error_create_internal(pc_context_t *ctx,
-                                      int code,
-                                      const char *msg,
-                                      const char *file,
-                                      int lineno);
-pc_error_t *pc__error_create_internal_via(pc_pool_t *pool,
+pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
+                                         int code,
+                                         const char *format,
+                                         const char *file,
+                                         int lineno,
+                                         ...)
+        __attribute__((format(printf, 3, 6)));
+pc_error_t *pc__error_createf_internal_x(pc_context_t *ctx,
+                                         int errval,
+                                         const char *format,
+                                         const char *file,
+                                         int lineno,
+                                         ...)
+        __attribute__((format(printf, 3, 6)));
+pc_error_t *pc__error_createf_internal_p(pc_pool_t *pool,
+                                         int errval,
+                                         const char *format,
+                                         const char *file,
+                                         int lineno,
+                                         ...)
+        __attribute__((format(printf, 3, 6)));
+pc_error_t *pc__error_createf_internal_xn(pc_context_t *ctx,
+                                          const char *ns,
                                           int code,
-                                          const char *msg,
+                                          const char *format,
                                           const char *file,
-                                          int lineno);
-pc_error_t *pc__error_createf_internal(pc_context_t *ctx,
-                                       int code,
-                                       const char *format,
-                                       const char *file,
-                                       int lineno,
-                                       ...)
-        __attribute__((format(printf, 3, 6)));
-pc_error_t *pc__error_createf_internal_via(pc_pool_t *pool,
-                                           int code,
-                                           const char *format,
-                                           const char *file,
-                                           int lineno,
-                                           ...)
-        __attribute__((format(printf, 3, 6)));
-pc_error_t *pc__error_wrap_internal(int code,
-                                    const char *msg,
-                                    pc_error_t *original,
-                                    const char *file,
-                                    int lineno);
+                                          int lineno,
+                                          ...)
+        __attribute__((format(printf, 4, 7)));
+pc_error_t *pc__error_createf_internal_pn(pc_pool_t *pool,
+                                          const char *ns,
+                                          int code,
+                                          const char *format,
+                                          const char *file,
+                                          int lineno,
+                                          ...)
+        __attribute__((format(printf, 4, 7)));
+
+pc_error_t *pc__error_annotate_internal(const char *msg,
+                                        pc_error_t *error,
+                                        const char *file,
+                                        int lineno);
 pc_error_t *pc__error_join_internal(pc_error_t *error,
                                     pc_error_t *separate,
                                     const char *file,

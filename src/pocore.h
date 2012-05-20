@@ -65,6 +65,10 @@ extern "C" {
 #define PC_DBG0(msg) fprintf(stderr, "DBG: %s:%d: %s\n", \
                              __FILE__, __LINE__, (msg))
 
+/* ### temporary until visit all callers and fix them.  */
+#define pc_error_create(x,c,m) pc_error_create_xm(x,c,(const char *)m)
+#define pc_error_wrap(c,m,e) pc_error_annotate(m,e)
+
 
 struct pc_tracklist_s {
     union pc_trackreg_u *reg;
@@ -188,6 +192,9 @@ struct pc_context_s {
     /* Pool to hold all errors associated with this context. This will be
        created on-demand and owned by the context.  */
     struct pc_pool_s *error_pool;
+
+    /* Error mappings. Namespace -> pc_errmap_t  */
+    pc_hash_t *emaps;
 
     /* ### need mechanism to hook errors into this context.
        ### if TRACK_UNHANDLED is TRUE, then we will allocate errors as
@@ -344,6 +351,18 @@ struct pc_error_list_s {
        UNHANDLED list maintained in the related context.  */
     struct pc_error_list_s *previous;
     struct pc_error_list_s *next;
+};
+
+
+struct pc_errmap_s {
+    /* The associated context for sorting out error namespaces.  */
+    pc_context_t *ctx;
+
+    /* The namespace this map will manage.  */
+    const char *ns;
+
+    /* The base error value assigned to this error map.  */
+    int baseval;
 };
 
 

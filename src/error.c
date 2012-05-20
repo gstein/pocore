@@ -37,8 +37,8 @@
    children) because the error is wrapped by multiple (unknown) parents.
    We can't detach the error from the parents, so the best we can do is
    just avoid multiple free's.  */
-static const int marker;
-#define STOP_PROCESSING_MARKER ((struct pc_error_list_s *)&marker)
+static const struct pc_error_list_s marker = { { 0 } };
+#define STOP_PROCESSING_MARKER ((/* const */ struct pc_error_list_s *)&marker)
 
 
 /* Is LINK somewhere on the UNHANDLED list?  */
@@ -47,6 +47,24 @@ static const int marker;
       && (link)->previous != STOP_PROCESSING_MARKER) \
      || (link)->next != NULL                         \
      || (link)->error.ctx->unhandled == (link))
+
+#define LOOKUP(emap, code) ((emap)->baseval + (code))
+
+
+static int
+remap_code(pc_context_t *ctx,
+           const char *ns,
+           int code)
+{
+    pc_errmap_t *emap;
+
+    if (ctx->emaps == NULL)
+        return code;
+    emap = pc_hash_gets(ctx->emaps, ns);
+    if (emap == NULL)
+        return code;
+    return emap->baseval + code;
+}
 
 
 static pc_error_t *
@@ -62,7 +80,7 @@ scan_useful(const pc_error_t *error)
 
 static pc_error_t *
 create_error(pc_context_t *ctx,
-             int code,
+             int errval,
              const char *msg,
              const char *file,
              int lineno,
@@ -94,7 +112,7 @@ create_error(pc_context_t *ctx,
     }
 
     error->ctx = ctx;
-    error->code = code;
+    error->code = errval;
     error->msg = msg ? pc_strdup(ctx->error_pool, msg) : NULL;
     error->file = file;
     error->lineno = lineno;
@@ -163,7 +181,8 @@ void pc_error_handled(pc_error_t *error)
     }
 
     /* If an error exists, then it must be on the UNHANDLED list, or there
-       must be a wrapping error on the UNHANDLED list.  */
+       must be a wrapping error on the UNHANDLED list. If the list is
+       empty, then we're getting a double-free or a bad pointer.  */
     assert(error->ctx->unhandled != NULL);
 
     link = (struct pc_error_list_s *)error;
@@ -198,6 +217,16 @@ void pc_error_handled(pc_error_t *error)
 
 
 int pc_error_code(const pc_error_t *error)
+{
+    const pc_error_t *useful = scan_useful(error);
+
+    /* ### map the error value into a local code  */
+
+    return useful ? useful->code : PC_SUCCESS;
+}
+
+
+int pc_error_errval(const pc_error_t *error)
 {
     const pc_error_t *useful = scan_useful(error);
 
@@ -239,9 +268,15 @@ pc_error_t *pc_error_separate(const pc_error_t *error)
 }
 
 
+pc_context_t *pc_error_context(const pc_error_t *error)
+{
+    return error->ctx;
+}
+
+
 void pc_error_trace_info(const char **file,
                          int *lineno,
-                         int *code,
+                         int *errval,
                          const char **msg,
                          const pc_error_t **original,
                          const pc_error_t **separate,
@@ -249,7 +284,7 @@ void pc_error_trace_info(const char **file,
 {
     *file = error->file;
     *lineno = error->lineno;
-    *code = error->code;
+    *errval = error->code;
     *msg = error->msg;
     *original = error->original;
     *separate = error->separate;
@@ -307,78 +342,136 @@ unlink_wrapped(pc_error_t *error, const char *file, int lineno)
 
 
 /* Internal constructors. Use pc_error_create() and friends, instead.  */
-pc_error_t *pc__error_create_internal(pc_context_t *ctx,
-                                      int code,
-                                      const char *msg,
-                                      const char *file,
-                                      int lineno)
+
+static pc_error_t *
+format_error(pc_context_t *ctx,
+             int errval,
+             const char *format,
+             const char *file,
+             int lineno,
+             va_list ap)
 {
-    return create_error(ctx, code, msg, file, lineno, NULL);
+    pc_error_t *error;
+
+    error = create_error(ctx, errval, NULL, file, lineno, NULL);
+
+    if (format == NULL || format[0] == '\0')
+        error->msg = NULL;
+    else if (format[0] == '%' && format[1] == 's' && format[2] == '\0')
+        error->msg = pc_strdup(ctx->error_pool, va_arg(ap, const char *));
+    else
+        error->msg = pc_vsprintf(ctx->error_pool, format, ap);
+
+    return error;
 }
 
 
-pc_error_t *pc__error_create_internal_via(pc_pool_t *pool,
+pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
+                                         int code,
+                                         const char *format,
+                                         const char *file,
+                                         int lineno,
+                                         ...)
+{
+    pc_error_t *error;
+    va_list ap;
+
+    va_start(ap, lineno);
+    error = format_error(emap->ctx, LOOKUP(emap, code), format,
+                         file, lineno, ap);
+    va_end(ap);
+
+    return error;
+}
+
+
+pc_error_t *pc__error_createf_internal_x(pc_context_t *ctx,
+                                         int errval,
+                                         const char *format,
+                                         const char *file,
+                                         int lineno,
+                                         ...)
+{
+    pc_error_t *error;
+    va_list ap;
+
+    va_start(ap, lineno);
+    error = format_error(ctx, errval, format, file, lineno, ap);
+    va_end(ap);
+
+    return error;
+}
+
+
+pc_error_t *pc__error_createf_internal_p(pc_pool_t *pool,
+                                         int errval,
+                                         const char *format,
+                                         const char *file,
+                                         int lineno,
+                                         ...)
+{
+    pc_error_t *error;
+    va_list ap;
+
+    va_start(ap, lineno);
+    error = format_error(pool->ctx, errval, format, file, lineno, ap);
+    va_end(ap);
+
+    return error;
+}
+
+
+pc_error_t *pc__error_createf_internal_xn(pc_context_t *ctx,
+                                          const char *ns,
                                           int code,
-                                          const char *msg,
+                                          const char *format,
                                           const char *file,
-                                          int lineno)
-{
-    return create_error(pool->ctx, code, msg, file, lineno, NULL);
-}
-
-
-pc_error_t *pc__error_createf_internal(pc_context_t *ctx,
-                                       int code,
-                                       const char *format,
-                                       const char *file,
-                                       int lineno,
-                                       ...)
+                                          int lineno,
+                                          ...)
 {
     pc_error_t *error;
     va_list ap;
 
-    error = create_error(ctx, code, NULL, file, lineno, NULL);
-
     va_start(ap, lineno);
-    error->msg = pc_vsprintf(ctx->error_pool, format, ap);
+    error = format_error(ctx, remap_code(ctx, ns, code), format,
+                         file, lineno, ap);
     va_end(ap);
 
     return error;
 }
 
 
-pc_error_t *pc__error_createf_internal_via(pc_pool_t *pool,
-                                           int code,
-                                           const char *format,
-                                           const char *file,
-                                           int lineno,
-                                           ...)
+pc_error_t *pc__error_createf_internal_pn(pc_pool_t *pool,
+                                          const char *ns,
+                                          int code,
+                                          const char *format,
+                                          const char *file,
+                                          int lineno,
+                                          ...)
 {
     pc_error_t *error;
     va_list ap;
 
-    error = create_error(pool->ctx, code, NULL, file, lineno, NULL);
-
     va_start(ap, lineno);
-    error->msg = pc_vsprintf(pool->ctx->error_pool, format, ap);
+    error = format_error(pool->ctx, remap_code(pool->ctx, ns, code), format,
+                         file, lineno, ap);
     va_end(ap);
 
     return error;
 }
 
 
-pc_error_t *pc__error_wrap_internal(int code,
-                                    const char *msg,
-                                    pc_error_t *original,
-                                    const char *file,
-                                    int lineno)
+pc_error_t *pc__error_annotate_internal(const char *msg,
+                                        pc_error_t *error,
+                                        const char *file,
+                                        int lineno)
 {
-    /* ### some PC_DEBUG magic?  */
-    assert(original != NULL);
+    if (error == NULL)
+        return NULL;
 
-    unlink_wrapped(original, file, lineno);
+    unlink_wrapped(error, file, lineno);
 
-    return create_error(original->ctx, code, msg, file, lineno, original);
+    return create_error(error->ctx, PC_ERR_TRACE, msg, file, lineno, error);
 }
 
 
