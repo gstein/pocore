@@ -73,6 +73,10 @@ const pc_errmap_t *pc_errmap_register(pc_context_t *ctx,
 {
     pc_errmap_t *emap;
 
+    /* ### does the error pool require any special configuration?  */
+    if (ctx->error_pool == NULL)
+        ctx->error_pool = pc_pool_root(ctx);
+
     if (ctx->emaps != NULL)
     {
         emap = pc_hash_gets(ctx->emaps, namespace);
@@ -350,15 +354,11 @@ void pc_error_handled(pc_error_t *error)
 int pc_error_code(const pc_error_t *error)
 {
     const pc_error_t *useful = scan_useful(error);
-    const pc_errmap_t *emap;
 
     if (useful == NULL)
         return PC_SUCCESS;
 
-    emap = find_errmap(error->ctx, useful->code);
-    if (emap == NULL)
-        return useful->code;
-    return TO_LOCAL(emap, useful->code);
+    return pc_errmap_code_any(error->ctx, useful->code);
 }
 
 
