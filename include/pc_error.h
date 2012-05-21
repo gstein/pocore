@@ -42,34 +42,43 @@ extern "C" {
    ### see draft of error mappers below.  */
 
 #define PC_SUCCESS 0
-#define PC_ERR_TRACE  100  /* ### figure out numbering scheme  */
-#define PC_ERR_IMPROPER_UNHANDLED_CALL 101
-#define PC_ERR_IMPROPER_WRAP 102
-#define PC_ERR_IMPROPER_DEREGISTER 103
-#define PC_ERR_IMPROPER_CLEANUP 104
-#define PC_ERR_NOT_REGISTERED 105
-#define PC_ERR_UNSPECIFIED_OS 106
-#define PC_ERR_IMPROPER_REENTRY 107
-#define PC_ERR_ADDRESS_LOOKUP 108
-#define PC_ERR_BAD_PARAM 109
-#define PC_ERR_ANNOTATE 110  /* ### motr eotk needed...  */
 
+#define PC_ERR_TRACE  PC__ERR_VALUE(0)
+#define PC_ERR_IMPROPER_UNHANDLED_CALL  PC__ERR_VALUE(1)
+#define PC_ERR_IMPROPER_WRAP  PC__ERR_VALUE(2)
+#define PC_ERR_IMPROPER_DEREGISTER  PC__ERR_VALUE(3)
+#define PC_ERR_IMPROPER_CLEANUP  PC__ERR_VALUE(4)
+#define PC_ERR_NOT_REGISTERED  PC__ERR_VALUE(5)
+#define PC_ERR_UNSPECIFIED_OS  PC__ERR_VALUE(6)
+#define PC_ERR_IMPROPER_REENTRY  PC__ERR_VALUE(7)
+#define PC_ERR_ADDRESS_LOOKUP  PC__ERR_VALUE(8)
+#define PC_ERR_BAD_PARAM  PC__ERR_VALUE(9)
+
+/* Private macros for computing the builtin error values.  */
+#define PC__ERR_BASE  10000
+#define PC__ERR_VALUE(code)  (PC__ERR_BASE + (code))
 
 /* Error number mapping.  */
 typedef struct pc_errmap_s pc_errmap_t;
 
 #define PC_ERR_MAPPING (-1)
 
+#define PC_ERR_DEFAULT_NS ("pc")
+
+
+typedef const char *(*pc_errmap_message_cb)(int code,
+                                            void *baton);
 
 /* Construct an error code mapper for this namespace. This will have the
    same lifetime as CTX. If a mapper for NAMESPACE was created previously,
-   then it will be returned.  */
-const pc_errmap_t *pc_errmap_create(pc_context_t *ctx,
-                                    const char *namespace);
+   then it will be returned.
 
-/* Return the namespace defined by this error map.  */
-const char *pc_errmap_namespace(const pc_errmap_t *errmap,
-                                int errval);
+   If MESSAGE_CB is not NULL, then it will be called to provide a default
+   message for a specified (local) error codel  */
+const pc_errmap_t *pc_errmap_register(pc_context_t *ctx,
+                                      const char *namespace,
+                                      pc_errmap_message_cb message_cb,
+                                      void *message_baton);
 
 /* Map a global error value to a local error code. If the value is not
    within the namespace defined by this error map, then PC_ERR_MAPPING
@@ -77,19 +86,24 @@ const char *pc_errmap_namespace(const pc_errmap_t *errmap,
 int pc_errmap_code(const pc_errmap_t *errmap,
                    int errval);
 
-/* Map a global error value to a local error code, regardless of the
-   namespace defined by this error map.  */
-int pc_errmap_code_any(const pc_errmap_t *errmap,
-                       int errval);
-
 /* Map a local error code to a global error value. If CODE is PC_SUCCESS,
    then PC_SUCCESS will be returned. If CODE is less than zero, then
    PC_ERR_MAPPING will be returned.  */
 int pc_errmap_errval(const pc_errmap_t *errmap,
                      int code);
 
+/* Return the namespace associated with this global error value. If no
+   namespace exists for this value, then NULL is returned. The standard
+   errors will return PC_ERR_DEFAULT_NS.  */
+const char *pc_errmap_namespace(const pc_context_t *ctx,
+                                int errval);
+
+/* Map a global error value to a local error code.  */
+int pc_errmap_code_any(const pc_context_t *ctx,
+                       int errval);
+
 /* Return the pocore context associated with the given error map.  */
-pc_context_t *pc_errmap_ctx(const pc_errmap_t *errmap);
+pc_context_t *pc_errmap_context(const pc_errmap_t *errmap);
 
 
 /* ### docco for all the functions below  */

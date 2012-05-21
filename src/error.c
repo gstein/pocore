@@ -48,7 +48,138 @@ static const struct pc_error_list_s marker = { { 0 } };
      || (link)->next != NULL                         \
      || (link)->error.ctx->unhandled == (link))
 
-#define LOOKUP(emap, code) ((emap)->baseval + (code))
+#define TO_GLOBAL(emap, code) ((emap)->baseval + (code))
+#define TO_LOCAL(emap, errval) ((errval) - (emap)->baseval)
+
+/* The number of codes to reserve for each namespace.
+
+   As a data point, Subversion has 280 codes (as of May 20, 2012). These
+   are arranged 23 categories.
+
+   10000 provides for 100 categories of 100 codes each, if an application
+   uses a code reservation mechanism similar to Subversion.  */
+#define ERROR_NS_SIZE  10000
+
+#define IN_RANGE(baseval, errval) ((baseval) <= (errval) \
+                                   && (errval) < (baseval) + ERROR_NS_SIZE)
+#define IS_WITHIN_NS(emap, errval) IN_RANGE((emap)->baseval, errval)
+#define IS_PC_ERRVAL(errval)  IN_RANGE(PC__ERR_BASE, (errval))
+
+
+const pc_errmap_t *pc_errmap_register(pc_context_t *ctx,
+                                      const char *namespace,
+                                      pc_errmap_message_cb message_cb,
+                                      void *message_baton)
+{
+    pc_errmap_t *emap;
+
+    if (ctx->emaps != NULL)
+    {
+        emap = pc_hash_gets(ctx->emaps, namespace);
+        if (emap != NULL)
+            return emap;
+    }
+    else
+    {
+        ctx->emaps = pc_hash_create(ctx->error_pool);
+    }
+
+    emap = pc_alloc(ctx->error_pool, sizeof(*emap));
+    emap->ctx = ctx;
+    emap->ns = pc_strdup(ctx->error_pool, namespace);
+    emap->baseval = PC__ERR_BASE
+                    + ERROR_NS_SIZE * (pc_hash_count(ctx->emaps) + 1);
+    emap->message_cb = message_cb;
+    emap->message_baton = message_baton;
+
+    pc_hash_sets(ctx->emaps, namespace, emap);
+
+    return emap;
+}
+
+
+static const pc_errmap_t *
+find_errmap(const pc_context_t *ctx,
+            int errval)
+{
+    pc_hiter_t *hi;
+
+    if (ctx->emaps == NULL)
+        return NULL;
+
+    /* Note: we allocate the iterator within the error pool. We know it
+       exists if we're here. The iterator's memory gets returned to the
+       pool, so it won't grow boundlessly.  */
+
+    for (hi = pc_hiter_begin(ctx->emaps, ctx->error_pool);
+         hi;
+         hi = pc_hiter_next(hi))
+    {
+        const pc_errmap_t *emap = pc_hiter_value(hi);
+
+        if (IS_WITHIN_NS(emap, errval))
+        {
+            pc_hiter_freemem(ctx->error_pool, hi);
+            return emap;
+        }
+    }
+
+    pc_hiter_freemem(ctx->error_pool, hi);
+    return NULL;
+}
+
+
+int pc_errmap_code(const pc_errmap_t *emap,
+                   int errval)
+{
+    if (IS_WITHIN_NS(emap, errval))
+        return TO_LOCAL(emap, errval);
+
+    return PC_ERR_MAPPING;
+}
+
+
+int pc_errmap_errval(const pc_errmap_t *emap,
+                     int code)
+{
+    return TO_GLOBAL(emap, code);
+}
+
+
+const char *pc_errmap_namespace(const pc_context_t *ctx,
+                                int errval)
+{
+    const pc_errmap_t *emap;
+
+    if (IS_PC_ERRVAL(errval))
+        return PC_ERR_DEFAULT_NS;
+
+    emap = find_errmap(ctx, errval);
+    if (emap == NULL)
+        return NULL;
+    return emap->ns;
+}
+
+
+int pc_errmap_code_any(const pc_context_t *ctx,
+                       int errval)
+{
+    const pc_errmap_t *emap;
+
+    if (IS_PC_ERRVAL(errval))
+        return errval;
+
+    emap = find_errmap(ctx, errval);
+    if (emap == NULL)
+        return errval;
+    return TO_LOCAL(emap, errval);
+}
+
+
+pc_context_t *pc_errmap_context(const pc_errmap_t *emap)
+{
+    return emap->ctx;
+}
 
 
 static int
@@ -63,7 +194,7 @@ remap_code(pc_context_t *ctx,
     emap = pc_hash_gets(ctx->emaps, ns);
     if (emap == NULL)
         return code;
-    return emap->baseval + code;
+    return TO_GLOBAL(emap, code);
 }
 
 
@@ -219,10 +350,15 @@ void pc_error_handled(pc_error_t *error)
 int pc_error_code(const pc_error_t *error)
 {
     const pc_error_t *useful = scan_useful(error);
+    const pc_errmap_t *emap;
 
-    /* ### map the error value into a local code  */
+    if (useful == NULL)
+        return PC_SUCCESS;
 
-    return useful ? useful->code : PC_SUCCESS;
+    emap = find_errmap(error->ctx, useful->code);
+    if (emap == NULL)
+        return useful->code;
+    return TO_LOCAL(emap, useful->code);
 }
 
 
@@ -348,7 +484,7 @@ pc_error_t *pc__error_create_internal_e(pc_errmap_t *emap,
                                         const char *file,
                                         int lineno)
 {
-    return create_error(emap->ctx, LOOKUP(emap, code), NULL,
+    return create_error(emap->ctx, TO_GLOBAL(emap, code), NULL,
                         file, lineno, NULL);
 }
 
@@ -408,7 +544,7 @@ pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
     va_list ap;
 
     va_start(ap, lineno);
-    error = format_error(emap->ctx, LOOKUP(emap, code), format,
+    error = format_error(emap->ctx, TO_GLOBAL(emap, code), format,
                          file, lineno, ap);
     va_end(ap);
 

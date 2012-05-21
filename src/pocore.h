@@ -26,6 +26,7 @@
 
 #include "pc_types.h"
 #include "pc_mutex.h"
+#include "pc_error.h"
 
 /* Get our private platform-specific stuff.  */
 #include "pocore_platform.h"
@@ -363,6 +364,10 @@ struct pc_errmap_s {
 
     /* The base error value assigned to this error map.  */
     int baseval;
+
+    /* The callback to get a default error message.  */
+    pc_errmap_message_cb message_cb;
+    void *message_baton;
 };
 
 
