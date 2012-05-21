@@ -60,13 +60,15 @@ extern "C" {
 
 /* Error number mapping.  */
 typedef struct pc_errmap_s pc_errmap_t;
+typedef int pc_errcode_t;
+typedef int pc_errval_t;
 
 #define PC_ERR_MAPPING (-1)
 
 #define PC_ERR_DEFAULT_NS ("pc")
 
 
-typedef const char *(*pc_errmap_message_cb)(int code,
+typedef const char *(*pc_errmap_message_cb)(pc_errcode_t code,
                                             void *baton);
 
 /* Construct an error code mapper for this namespace. This will have the
@@ -83,24 +85,24 @@ const pc_errmap_t *pc_errmap_register(pc_context_t *ctx,
 /* Map a global error value to a local error code. If the value is not
    within the namespace defined by this error map, then PC_ERR_MAPPING
    is returned.  */
-int pc_errmap_code(const pc_errmap_t *errmap,
-                   int errval);
+pc_errcode_t pc_errmap_code(const pc_errmap_t *errmap,
+                            pc_errval_t errval);
 
 /* Map a local error code to a global error value. If CODE is PC_SUCCESS,
    then PC_SUCCESS will be returned. If CODE is less than zero, then
    PC_ERR_MAPPING will be returned.  */
-int pc_errmap_errval(const pc_errmap_t *errmap,
-                     int code);
+pc_errval_t pc_errmap_errval(const pc_errmap_t *errmap,
+                             pc_errcode_t code);
 
 /* Return the namespace associated with this global error value. If no
    namespace exists for this value, then NULL is returned. The standard
    errors will return PC_ERR_DEFAULT_NS.  */
 const char *pc_errmap_namespace(const pc_context_t *ctx,
-                                int errval);
+                                pc_errval_t errval);
 
 /* Map a global error value to a local error code.  */
-int pc_errmap_code_any(const pc_context_t *ctx,
-                       int errval);
+pc_errcode_t pc_errmap_code_any(const pc_context_t *ctx,
+                                pc_errval_t errval);
 
 /* Return the pocore context associated with the given error map.  */
 pc_context_t *pc_errmap_context(const pc_errmap_t *errmap);
@@ -188,14 +190,14 @@ void pc_error_handled(pc_error_t *error);
    skipped until a non-tracing error is located in the ORIGINAL chain.
    If ERROR is NULL, or there are no errors (which should not happen),
    then PC_SUCCESS will be returned.  */
-int pc_error_code(const pc_error_t *error);
+pc_errcode_t pc_error_code(const pc_error_t *error);
 
 
 /* Return ERROR's useful global error value. Any tracing errors will be
    skipped until a non-tracing error is located in the ORIGINAL chain.
    If ERROR is NULL, orthere are no errors (which should not happen),
    then PC_SUCCESS will be returned.  */
-int pc_error_errval(const pc_error_t *error);
+pc_errval_t pc_error_errval(const pc_error_t *error);
 
 
 /* Return the useful message associated with ERROR. This will live as long
@@ -239,7 +241,7 @@ pc_context_t *pc_error_context(const pc_error_t *error);
    skipping trace errors (like pc_error_separate does).  */
 void pc_error_trace_info(const char **file,
                          int *lineno,
-                         int *errval,
+                         pc_errval_t *errval,
                          const char **msg,
                          const pc_error_t **original,
                          const pc_error_t **separate,
@@ -248,22 +250,22 @@ void pc_error_trace_info(const char **file,
 
 /* Internal constructors. Use pc_error_create_*() and friends, instead.  */
 pc_error_t *pc__error_create_internal_e(pc_errmap_t *emap,
-                                        int code,
+                                        pc_errcode_t code,
                                         const char *file,
                                         int lineno);
 pc_error_t *pc__error_create_internal_xn(pc_context_t *ctx,
                                          const char *ns,
-                                         int code,
+                                         int code_or_val,
                                          const char *file,
                                          int lineno);
 pc_error_t *pc__error_create_internal_pn(pc_pool_t *pool,
                                          const char *ns,
-                                         int code,
+                                         int code_or_val,
                                          const char *file,
                                          int lineno);
 
 pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
-                                         int code,
+                                         pc_errcode_t code,
                                          const char *format,
                                          const char *file,
                                          int lineno,
@@ -271,7 +273,7 @@ pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
         __attribute__((format(printf, 3, 6)));
 pc_error_t *pc__error_createf_internal_xn(pc_context_t *ctx,
                                           const char *ns,
-                                          int code,
+                                          int code_or_val,
                                           const char *format,
                                           const char *file,
                                           int lineno,
@@ -279,7 +281,7 @@ pc_error_t *pc__error_createf_internal_xn(pc_context_t *ctx,
         __attribute__((format(printf, 4, 7)));
 pc_error_t *pc__error_createf_internal_pn(pc_pool_t *pool,
                                           const char *ns,
-                                          int code,
+                                          int code_or_val,
                                           const char *format,
                                           const char *file,
                                           int lineno,

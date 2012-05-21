@@ -104,7 +104,7 @@ const pc_errmap_t *pc_errmap_register(pc_context_t *ctx,
 
 static const pc_errmap_t *
 find_errmap(const pc_context_t *ctx,
-            int errval)
+            pc_errval_t errval)
 {
     pc_hiter_t *hi;
 
@@ -133,8 +133,8 @@ find_errmap(const pc_context_t *ctx,
 }
 
 
-int pc_errmap_code(const pc_errmap_t *emap,
-                   int errval)
+pc_errcode_t pc_errmap_code(const pc_errmap_t *emap,
+                            pc_errval_t errval)
 {
     if (IS_WITHIN_NS(emap, errval))
         return TO_LOCAL(emap, errval);
@@ -143,15 +143,15 @@ int pc_errmap_code(const pc_errmap_t *emap,
 }
 
 
-int pc_errmap_errval(const pc_errmap_t *emap,
-                     int code)
+pc_errval_t pc_errmap_errval(const pc_errmap_t *emap,
+                             pc_errcode_t code)
 {
     return TO_GLOBAL(emap, code);
 }
 
 
 const char *pc_errmap_namespace(const pc_context_t *ctx,
-                                int errval)
+                                pc_errval_t errval)
 {
     const pc_errmap_t *emap;
 
@@ -165,8 +165,8 @@ const char *pc_errmap_namespace(const pc_context_t *ctx,
 }
 
 
-int pc_errmap_code_any(const pc_context_t *ctx,
-                       int errval)
+pc_errcode_t pc_errmap_code_any(const pc_context_t *ctx,
+                                pc_errval_t errval)
 {
     const pc_errmap_t *emap;
 
@@ -186,19 +186,19 @@ pc_context_t *pc_errmap_context(const pc_errmap_t *emap)
 }
 
 
-static int
+static pc_errval_t
 remap_code(pc_context_t *ctx,
            const char *ns,
-           int code)
+           int code_or_val)
 {
     pc_errmap_t *emap;
 
     if (ctx->emaps == NULL || ns == NULL)
-        return code;
+        return code_or_val;
     emap = pc_hash_gets(ctx->emaps, ns);
     if (emap == NULL)
-        return code;
-    return TO_GLOBAL(emap, code);
+        return code_or_val;
+    return TO_GLOBAL(emap, code_or_val);
 }
 
 
@@ -215,7 +215,7 @@ scan_useful(const pc_error_t *error)
 
 static pc_error_t *
 create_error(pc_context_t *ctx,
-             int errval,
+             pc_errval_t errval,
              const char *msg,
              const char *file,
              int lineno,
@@ -351,7 +351,7 @@ void pc_error_handled(pc_error_t *error)
 }
 
 
-int pc_error_code(const pc_error_t *error)
+pc_errcode_t pc_error_code(const pc_error_t *error)
 {
     const pc_error_t *useful = scan_useful(error);
 
@@ -362,7 +362,7 @@ int pc_error_code(const pc_error_t *error)
 }
 
 
-int pc_error_errval(const pc_error_t *error)
+pc_errval_t pc_error_errval(const pc_error_t *error)
 {
     const pc_error_t *useful = scan_useful(error);
 
@@ -412,7 +412,7 @@ pc_context_t *pc_error_context(const pc_error_t *error)
 
 void pc_error_trace_info(const char **file,
                          int *lineno,
-                         int *errval,
+                         pc_errval_t *errval,
                          const char **msg,
                          const pc_error_t **original,
                          const pc_error_t **separate,
@@ -480,7 +480,7 @@ unlink_wrapped(pc_error_t *error, const char *file, int lineno)
 /* Internal constructors. Use pc_error_create() and friends, instead.  */
 
 pc_error_t *pc__error_create_internal_e(pc_errmap_t *emap,
-                                        int code,
+                                        pc_errcode_t code,
                                         const char *file,
                                         int lineno)
 {
@@ -491,29 +491,31 @@ pc_error_t *pc__error_create_internal_e(pc_errmap_t *emap,
 
 pc_error_t *pc__error_create_internal_xn(pc_context_t *ctx,
                                          const char *ns,
-                                         int code,
+                                         int code_or_val,
                                          const char *file,
                                          int lineno)
 {
-    return create_error(ctx, remap_code(ctx, ns, code), NULL,
+    return create_error(ctx, remap_code(ctx, ns, code_or_val), NULL,
                         file, lineno, NULL);
 }
 
 
 pc_error_t *pc__error_create_internal_pn(pc_pool_t *pool,
                                          const char *ns,
-                                         int code,
+                                         int code_or_val,
                                          const char *file,
                                          int lineno)
 {
-    return create_error(pool->ctx, remap_code(pool->ctx, ns, code), NULL,
+    pc_errval_t errval = remap_code(pool->ctx, ns, code_or_val);
+
+    return create_error(pool->ctx, errval, NULL,
                         file, lineno, NULL);
 }
 
 
 static pc_error_t *
 format_error(pc_context_t *ctx,
-             int errval,
+             pc_errval_t errval,
              const char *format,
              const char *file,
              int lineno,
@@ -534,7 +536,7 @@ format_error(pc_context_t *ctx,
 
 
 pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
-                                         int code,
+                                         pc_errcode_t code,
                                          const char *format,
                                          const char *file,
                                          int lineno,
@@ -554,7 +556,7 @@ pc_error_t *pc__error_createf_internal_e(pc_errmap_t *emap,
 
 pc_error_t *pc__error_createf_internal_xn(pc_context_t *ctx,
                                           const char *ns,
-                                          int code,
+                                          int code_or_val,
                                           const char *format,
                                           const char *file,
                                           int lineno,
@@ -564,7 +566,7 @@ pc_error_t *pc__error_createf_internal_xn(pc_context_t *ctx,
     va_list ap;
 
     va_start(ap, lineno);
-    error = format_error(ctx, remap_code(ctx, ns, code), format,
+    error = format_error(ctx, remap_code(ctx, ns, code_or_val), format,
                          file, lineno, ap);
     va_end(ap);
 
@@ -574,7 +576,7 @@ pc_error_t *pc__error_createf_internal_xn(pc_context_t *ctx,
 
 pc_error_t *pc__error_createf_internal_pn(pc_pool_t *pool,
                                           const char *ns,
-                                          int code,
+                                          int code_or_val,
                                           const char *format,
                                           const char *file,
                                           int lineno,
@@ -582,9 +584,10 @@ pc_error_t *pc__error_createf_internal_pn(pc_pool_t *pool,
 {
     pc_error_t *error;
     va_list ap;
+    pc_errval_t errval = remap_code(pool->ctx, ns, code_or_val);
 
     va_start(ap, lineno);
-    error = format_error(pool->ctx, remap_code(pool->ctx, ns, code), format,
+    error = format_error(pool->ctx, errval, format,
                          file, lineno, ap);
     va_end(ap);
 
