@@ -90,6 +90,9 @@ const void *pc_hiter_key(const pc_hiter_t *hiter);
 size_t pc_hiter_klen(const pc_hiter_t *hiter);
 void *pc_hiter_value(const pc_hiter_t *hiter);
 
+/* Return the iterator's memory to pool it was allocated from.  */
+void pc_hiter_freemem(pc_pool_t *pool, const pc_hiter_t *hiter);
+
 
 /* PoCore's array type and supporting functions.  */
 

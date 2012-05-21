@@ -459,3 +459,9 @@ void *pc_hiter_value(const pc_hiter_t *hiter)
 {
     return hiter->current->value;
 }
+
+
+void pc_hiter_freemem(pc_pool_t *pool, const pc_hiter_t *hiter)
+{
+    pc_pool_freemem(pool, (void *)hiter, sizeof(*hiter));
+}
