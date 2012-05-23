@@ -41,6 +41,7 @@ prepare_for_tracking(pc_context_t *ctx)
 }
 
 
+/* Find a tracking registration structure, or allocate one.  */
 static union pc_trackreg_u *
 get_treg(pc_context_t *ctx)
 {
@@ -54,6 +55,7 @@ get_treg(pc_context_t *ctx)
 }
 
 
+/* Find a free tracking list structure, or allocate one.  */
 static struct pc_tracklist_s *
 get_tlist(pc_context_t *ctx)
 {
@@ -67,6 +69,8 @@ get_tlist(pc_context_t *ctx)
 }
 
 
+/* Get/alloc a new tracking list structure (possibly from CTX), set it up
+   for REG, and then hook it into *LIST.  */
 static void
 add_to_list(pc_context_t *ctx,
             struct pc_tracklist_s **list,
@@ -80,10 +84,6 @@ add_to_list(pc_context_t *ctx,
     }
 #endif
 
-    /* Note that the pool's recall mechanism assumes that owners are
-       inserted at the HEAD of the list. It can thus remember the original
-       head when a post is set, and cleanup any owners registered "in front"
-       of that saved point.  */
     tlist->reg = reg;
     tlist->next = *list;
     *list = tlist;
@@ -112,16 +112,17 @@ remove_from_list(pc_context_t *ctx,
     }
 
     /* Locate the list item just before our item-of-interest.  */
-    while (scan->next != NULL && scan->reg != reg)
+    while (scan->next != NULL && scan->next->reg != reg)
         scan = scan->next;
 
     /* We should have found the item, rather than hit the end of the list.  */
     assert(scan->next != NULL);
 
-    /* Remove from the specified list, and add the now-free structure into
-       the context's free list.  */
+    /* Remove tracking list structure from its list ... */
     tlist = scan->next;
     scan->next = tlist->next;
+
+    /* ... and hook the structure into the context's free list.  */
     tlist->next = ctx->free_tlist;
     ctx->free_tlist = tlist;
 }
@@ -218,7 +219,7 @@ void pc_track_dependent(pc_context_t *ctx,
     if (!TRACKING_STARTED(ctx))
     {
         /* If tracking hasn't even been started, then OWNER and DEPENDENT
-           are certainly not registerd yet, so we cannot hook the up.
+           are certainly not registerd yet, so we cannot hook them up.
            Create an error that will be left unhandled.  */
         goto not_registered;
     }
