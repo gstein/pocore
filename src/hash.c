@@ -281,6 +281,7 @@ maybe_grow(pc_hash_t *hash)
     if (hash->twins_index == TWINS_COUNT - 1)
         return;
 
+    /* Avoid 32-bit integer overflows.  */
     if (hash->alloc < 10000000)
         threshold = (hash->alloc * MAX_LOAD_PERCENT) / 100;
     else
@@ -318,7 +319,9 @@ pc_hash_t *pc_hash_create_min(pc_pool_t *pool, int min_items)
         result->twins_index = TWINS_COUNT - 1;
     else
     {
-        /* Scale up MIN_ITEMS based on our desired initial load factor  */
+        /* Scale up MIN_ITEMS based on our desired initial load factor.
+           This special test is done to avoid 32-bit integer overflows
+           in the load-factor computation.  */
         if (min_items > 10000000)
         {
             min_items = (min_items / INITIAL_LOAD) * 100;
