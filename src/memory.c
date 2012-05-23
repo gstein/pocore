@@ -250,8 +250,8 @@ void pc_pool_clear(pc_pool_t *pool)
         while (pool->child != NULL)
             pc_pool_destroy(pool->child);
 
-        /* If more owners of this pool have been registered, then loop back
-           to get them cleaned up.  */
+        /* If more owners of this pool have been registered (during the
+           child pool destruction), then loop back to get them cleaned up.  */
     } while (pool->track.a.owners != NULL);
 
     /* Return all the non-standard-sized blocks to the context.  */
