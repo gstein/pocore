@@ -72,37 +72,7 @@ extern "C" {
 #define PC_UNHANDLED(ctx, code) ((void) pc_error_create_x(ctx, code))
 
 
-struct pc_tracklist_s {
-    union pc_trackreg_u *reg;
-    struct pc_tracklist_s *next;
-};
-
-
-/* Track registration record.  */
-union pc_trackreg_u {
-    struct {
-        /* In many cases, TRACKED is passed to us, and is also the key in
-           the CTX->PTR_TO_REG hash table. But if we navigate to this
-           registration via the OWNERS or DEPENDENTS links, then we'll
-           need the original TRACKED pointer to call CLEANUP_FUNC.  */
-        const void *tracked;
-
-        /* The cleanup function registered for this item.  */
-        void (*cleanup_func)(void *tracked);
-
-        /* ### use an array-based structure to eliminate NEXT ptrs?  */
-        struct pc_tracklist_s *owners;
-        struct pc_tracklist_s *dependents;
-    } a;  /* allocated trackreg  */
-
-    /* ### hrm. can't we just omit the struct and drop the field into
-       ### the union? is there something else we need in this struct?  */
-    struct {
-        union pc_trackreg_u *next;
-    } f;  /* free'd trackreg  */
-};
-
-
+/* A single cleanup registration.  */
 struct pc_cleanup_list_s {
     /* The data item requiring a cleanup.  */
     const void *data;
@@ -110,6 +80,8 @@ struct pc_cleanup_list_s {
     /* Its cleanup function.  */
     pc_cleanup_func_t cleanup;
 
+    /* This link is used while this record is active in a pool, or for
+       the list of free records in the context.  */
     struct pc_cleanup_list_s *next;
 };
 
@@ -185,25 +157,12 @@ struct pc_context_s {
        universal-recipient process occurring here.  */
     struct pc_memtree_s *nonstd_blocks;
 
-    /* ### chained hashes to prevent realloc? subpool for this?
-       ### we'll probably have the hash code return memory to its pool,
-       ### so a realloc will not be much of a problem.  */
-    /* Map tracked pointers to registration structures. This hash is
-       created on-demand within TRACK_POOL (also created on-demand).  */
-    pc_hash_t *ptr_to_reg;
-
-    /* Free registration structures.  */
-    union pc_trackreg_u *free_treg;
-
-    /* Free tracking list structures.  */
-    struct pc_tracklist_s *free_tlist;
-
     /* Free cleanup list records.  */
     struct pc_cleanup_list_s *free_cl;
 
-    /* The pool to use for additional tracking allocations. This will be
-       created on-demand and owned by the context.  */
-    struct pc_pool_s *track_pool;
+    /* Pool for registering cleanup records, which will be stored into
+       FREE_CL when they are not in use. This pool will be created when
+       the first data item is registered for cleanup.  */
     struct pc_pool_s *cleanup_pool;
 
     /* Pool to hold all errors associated with this context. This will be
@@ -278,14 +237,6 @@ struct pc_pool_s {
 
     /* The cleanups registered with this pool.  */
     struct pc_cleanup_list_s *cleanups;
-
-    /* Inlined. Every pool has a set of owners (tho no dependents). Using
-       a trackreg structure allows the owners to deregister/cleanup and
-       to update the pool's tracking, like any other dependent.
-
-       When a trackreg is free'd, we can avoid putting this onto the
-       FREE_TREG list by examing the CLEANUP_FUNC (is it the pool's func?)  */
-    union pc_trackreg_u track;
 };
 
 

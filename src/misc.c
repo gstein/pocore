@@ -75,8 +75,8 @@ void pc_context_destroy(pc_context_t *ctx)
 
     if (ctx->cctx != NULL)
         pc__channel_cleanup(ctx);
-    if (ctx->track_pool != NULL)
-        pc_pool_destroy(ctx->track_pool);
+    if (ctx->cleanup_pool != NULL)
+        pc_pool_destroy(ctx->cleanup_pool);
     if (ctx->error_pool != NULL)
         pc_pool_destroy(ctx->error_pool);
 
