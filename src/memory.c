@@ -213,32 +213,41 @@ void pc_pool_clear(pc_pool_t *pool)
        to add new cleanups, and for those pools to add cleanups or
        create other child pools. As long as the sequence reaches a
        steady-state of destruction.
-
-       It is possible for the cleanup handlers to shoot themselves
-       in the foot: if a child pool cleanup attaches a new handler
-       to this pool, and that handler requires data from a child
-       pool, then it will be in trouble. All child pools are destroyed
-       before running the cleanup handlers (again), so when that new
-       handler is run... the child pool will be gone.
-
-       The simplest answer is for child pool cleanups to never attach
-       anything to the parent pool.
     */
 
-    do
     {
-        /* While the pool is still intact, clean up all the owners that
-           were established since we set the post.
+        /* While the pool is still intact, run all registered cleanups.
+
+           These cleanups are *ordered*, based on calls to
+           pc_cleanup_before(). POOL->CLEANUPS must be called before
+           the cleanups later in the list.
 
            NOTE: run these first, while the pool is still "unmodified".
            They may need something from this pool (ie. something with a
            longer lifetime which is sitting in this pool), or maybe
            something from a child pool.
 
-           NOTE: implementation detail: this function will run until the
-           owner list is empty. If cleanup handlers attach more owners,
-           then they will be executed before the function returns.  */
-        pc__track_cleanup_owners(pool);
+           NOTE: implementation detail: this will run until the cleanup
+           list is empty. If cleanup handlers attach more cleanups, then
+           they will be executed immediately.
+
+           NOTE: if child pool destruction happens to attach a cleanup
+           to *this* pool, then we return and run the cleanup(s) while
+           the child pool(s) exist. That cleanup may need the pool, so
+           running the cleanup takes priority over destroying any
+           child pools.
+        */
+        while (pool->cleanups != NULL)
+        {
+            struct pc_cleanup_list_s *cl;
+
+          run_cleanups:
+            cl = pool->cleanups;
+
+            /* Yank CL from the list of cleanups, then run it.  */
+            pool->cleanups = cl->next;
+            cl->cleanup((/* const */ void *)cl->data);
+        }
 
         /* Destroy all the child pools. Children will remove themselves
            from this list as they are destroyed, so we just keep destroying
@@ -248,11 +257,16 @@ void pc_pool_clear(pc_pool_t *pool)
            child pools) may add more subpools. Not a problem, as we will
            torch them here.  */
         while (pool->child != NULL)
+        {
             pc_pool_destroy(pool->child);
 
-        /* If more owners of this pool have been registered (during the
-           child pool destruction), then loop back to get them cleaned up.  */
-    } while (pool->track.a.owners != NULL);
+            /* Woah. A cleanup handler in a child pool attached a cleanup
+               onto THIS pool. This cleanup takes priority, as it may
+               require access to data in a child pool.  */
+            if (pool->cleanups != NULL)
+                goto run_cleanups;  /* don't tell me gotos are harmful :-)  */
+        }
+    }
 
     /* Return all the non-standard-sized blocks to the context.  */
     return_nonstd(ctx, pool->nonstd_blocks);
@@ -501,13 +515,4 @@ char *pc_vsprintf(pc_pool_t *pool, const char *fmt, va_list ap)
 char *pc_sprintf(pc_pool_t *pool, const char *fmt, ...)
 {
     return NULL;
-}
-
-
-void pc_pool_track(pc_pool_t *pool)
-{
-    /* We have a tracking structure built right into the pool for easier
-       manipulation of its owners. We need to jam that into the tracking
-       registry directly. Use a special entry point in track.c  */
-    pc__track_this_pool(pool);
 }
