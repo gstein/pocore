@@ -68,9 +68,9 @@ void pc_cleanup_before(pc_pool_t *pool,
                        const void *after);
 
 
-/* Run the cleanup for this particular tracked item, then de-register it.
+/* Run the cleanup for this particular data item, then de-register it.
    This item should not have any owners. This operation is a no-op if the
-   item is not registered for tracking.  */
+   data item is not registered for cleanup.  */
 void pc_cleanup_run(pc_pool_t *pool, const void *data);
 
 
