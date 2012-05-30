@@ -91,11 +91,6 @@ typedef struct pc_channel_s pc_channel_t;
 void pc_channel_destroy(pc_channel_t *channel);
 
 
-/* ### need to think more on this.  */
-void pc_channel_track(const pc_channel_t *channel, pc_context_t *ctx);
-void pc_channel_track_via(const pc_channel_t *channel, pc_pool_t *pool);
-void pc_channel_owns(const pc_channel_t *channel, pc_pool_t *pool);
-
 /* ### channels for stdio, stdout, stderr.
    ### do research about buffer sizes and binary-mode for these.  */
 
