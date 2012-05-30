@@ -402,14 +402,6 @@ struct pc_block_s *
 pc__memtree_fetch(struct pc_memtree_s **root, size_t size);
 
 
-/* Clean up all the owners of POOL.  */
-void pc__track_cleanup_owners(pc_pool_t *pool);
-
-
-/* Begin tracking for POOL, using its internal tracking structure.  */
-void pc__track_this_pool(pc_pool_t *pool);
-
-
 /* Lazy-initialize the mutex within CTX.  */
 void pc__context_init_mutex(pc_context_t *ctx);
 
