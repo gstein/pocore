@@ -27,6 +27,7 @@
 #include "pc_types.h"
 #include "pc_mutex.h"
 #include "pc_error.h"
+#include "pc_cleanup.h"
 
 /* Get our private platform-specific stuff.  */
 #include "pocore_platform.h"
@@ -99,6 +100,17 @@ union pc_trackreg_u {
     struct {
         union pc_trackreg_u *next;
     } f;  /* free'd trackreg  */
+};
+
+
+struct pc_cleanup_list_s {
+    /* The data item requiring a cleanup.  */
+    const void *data;
+
+    /* Its cleanup function.  */
+    pc_cleanup_func_t cleanup;
+
+    struct pc_cleanup_list_s *next;
 };
 
 
@@ -186,9 +198,13 @@ struct pc_context_s {
     /* Free tracking list structures.  */
     struct pc_tracklist_s *free_tlist;
 
+    /* Free cleanup list records.  */
+    struct pc_cleanup_list_s *free_cl;
+
     /* The pool to use for additional tracking allocations. This will be
        created on-demand and owned by the context.  */
     struct pc_pool_s *track_pool;
+    struct pc_pool_s *cleanup_pool;
 
     /* Pool to hold all errors associated with this context. This will be
        created on-demand and owned by the context.  */
@@ -259,6 +275,9 @@ struct pc_pool_s {
 
     /* The child pools, which are linked through their SIBLING member.  */
     struct pc_pool_s *child;
+
+    /* The cleanups registered with this pool.  */
+    struct pc_cleanup_list_s *cleanups;
 
     /* Inlined. Every pool has a set of owners (tho no dependents). Using
        a trackreg structure allows the owners to deregister/cleanup and
