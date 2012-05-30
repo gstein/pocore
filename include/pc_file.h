@@ -50,7 +50,7 @@ typedef struct pc_file_s pc_file_t;
 
 /* Other miscellaneous flags.  */
 #define PC_FILE_OPEN_TEXT     0x0010 /* text mode (on Windows).  */
-#define PC_FILE_NO_TRACK      0x0020 /* do not register for tracking.  */
+#define PC_FILE_NO_CLEANUP    0x0020 /* do not register a cleanup.  */
 
 /* Note: APPEND will use the POSIX O_APPEND mode, or FILE_APPEND_DATA
    on Windows. All writes will occur at the end of the file. Files in
@@ -60,12 +60,9 @@ typedef struct pc_file_s pc_file_t;
 /* Create a new file object, returned in *NEW_FILE. It will be opened on
    PATH according to FLAGS. The object will be allocated within POOL.
 
-   ### fix the code. we want to register by default. use NO_TRACK otherwise.
-   ### register a dep on the CTX. if it doesn't get tossed before then
-   ### (ie. track against a pool or other that dies before the CTX), then
-   ### an error should be registered.
-
-   The file object is NOT registered for tracking.  */
+   The file object registers a cleanup with POOL. You may use *NEW_FILE
+   with pc_cleanup_before(POOL, ob, *NEW_FILE) to define a cleanup order
+   for this file.  */
 pc_error_t *pc_file_create(pc_file_t **new_file,
                            const char *path,
                            int flags,
@@ -78,25 +75,6 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
    Of course, if the file was opened with DELCLOSE, then it will be
    removed at this time.  */
 void pc_file_destroy(pc_file_t *file);
-
-
-/* ### do we need these variants? ... FILE remembers the CTX associated with
-   ### the POOL at pc_file_create() time. I doubt it makes sense to track
-   ### a file in a *different* context, though it does make sense to track
-   ### the file against other pools.  */
-
-/* Register FILE in the tracking registry of CTX.  */
-void pc_file_track(const pc_file_t *file, pc_context_t *ctx);
-
-
-/* Register FILE in the tracking registry of the context implied by POOL.  */
-void pc_file_track_via(const pc_file_t *file, pc_pool_t *pool);
-
-
-/* Track FILE as an owner of POOL so that it will be closed when POOL
-   is cleaned-up/destroyed. Both arguments will be registered for tracking,
-   as required.  */
-void pc_file_owns(const pc_file_t *file, pc_pool_t *pool);
 
 
 pc_error_t *pc_file_read(size_t *amt_read,

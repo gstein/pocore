@@ -20,7 +20,7 @@
 
 #include "pc_types.h"
 #include "pc_file.h"
-#include "pc_track.h"
+#include "pc_cleanup.h"
 
 #include "pocore.h"
 #include "pocore_platform.h"
@@ -34,10 +34,9 @@
 
    It's Windows, or it's POSIX. Pretty simple for now.  */
 struct pc_file_s {
-    /* We remember the context this file is associated with. This is
-       primarily for tracking, but is also needed if we need to create
-       an unhandled error.  */
-    pc_context_t *ctx;
+    /* We remember the pool this file was allocated within. This is needed
+       for cleanup registration and for error handling.  */
+    pc_pool_t *pool;
 
 #ifdef PC__IS_WINDOWS
     HANDLE handle;
@@ -47,7 +46,6 @@ struct pc_file_s {
 
     pc_bool_t delclose;
     const char *path;  /* only when DELCLOSE.  */
-    pc_pool_t *pool;  /* only when DELCLOSE.  */
 };
 
 
@@ -57,6 +55,9 @@ static const char file_is_closed;
 #define FILE_CLOSED(file) ((file)->path == FILE_CLOSED_MARK)
 #define MARK_CLOSED(file) ((file)->path = FILE_CLOSED_MARK)
 
+/* ### rearrange functions in this file.  */
+static void cleanup_file(void *data);
+
 
 pc_error_t *pc_file_create(pc_file_t **new_file,
                            const char *path,
@@ -64,7 +65,7 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
                            pc_pool_t *pool)
 {
     *new_file = pc_calloc(pool, sizeof(**new_file));
-    (*new_file)->ctx = pool->ctx;
+    (*new_file)->pool = pool;
 
 #ifdef PC__IS_WINDOWS
     NOT_IMPLEMENTED();
@@ -103,7 +104,7 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
     (*new_file)->fd = open(path, openflags, 0777);
     if ((*new_file)->fd == -1)
     {
-        return pc_error_trace(pc__convert_os_error((*new_file)->ctx));
+        return pc_error_trace(pc__convert_os_error(pool->ctx));
     }
 
     if (mode == PC_FILE_OPEN_APPEND)
@@ -114,11 +115,13 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
     {
         (*new_file)->delclose = TRUE;
         (*new_file)->path = pc_strdup(pool, path);
-        (*new_file)->pool = pool;
     }
 #endif
 
-    return NULL;
+    /* Register a cleanup to close the file.  */
+    pc_cleanup_register(pool, *new_file, cleanup_file);
+
+    return PC_NO_ERROR;
 }
 
 
@@ -154,40 +157,13 @@ close_file(pc_file_t *file)
 
 void pc_file_destroy(pc_file_t *file)
 {
-    /* The file is getting destroyed, so we are no longer an owner of
-       anything (such as the pool it is allocated within). Note that
-       it is acceptable to call deregister for untracked items.  */
-    pc_track_deregister(file->ctx, file);
-
-    close_file(file);
+    pc_cleanup_run(file->pool, file);
 }
 
 
-static void cleanup_file(void *tracked)
+static void cleanup_file(void *data)
 {
-    close_file(tracked);
-}
-
-
-void pc_file_track(const pc_file_t *file, pc_context_t *ctx)
-{
-    /* ### validate ctx == file->ctx ?  */
-    pc_track(ctx, file, cleanup_file);
-}
-
-
-void pc_file_track_via(const pc_file_t *file, pc_pool_t *pool)
-{
-    /* ### validate pool->ctx == file->ctx ?  */
-    pc_track_via(pool, file, cleanup_file);
-}
-
-
-void pc_file_owns(const pc_file_t *file, pc_pool_t *pool)
-{
-    /* ### validate pool->ctx == file->ctx ?  */
-    pc_track_via(pool, file, cleanup_file);
-    pc_track_owns_pool(file, pool);
+    close_file(data);
 }
 
 
@@ -202,7 +178,7 @@ pc_error_t *pc_file_read(size_t *amt_read,
 
     if (!ReadFile(file->handle, buf, amt, &actual, NULL))
     {
-        return pc_error_trace(pc__convert_os_error(file->ctx));
+        return pc_error_trace(pc__convert_os_error(file->pool->ctx));
     }
 
     *amt_read = actual;
@@ -212,7 +188,7 @@ pc_error_t *pc_file_read(size_t *amt_read,
     actual = read(file->fd, buf, amt);
     if (actual == -1)
     {
-        return pc_error_trace(pc__convert_os_error(file->ctx));
+        return pc_error_trace(pc__convert_os_error(file->pool->ctx));
     }
 
     *amt_read = actual;
@@ -233,7 +209,7 @@ pc_error_t *pc_file_write(size_t *amt_written,
 
     if (!WriteFile(file->handle, buf, amt, &actual, NULL))
     {
-        return pc_error_trace(pc__convert_os_error(file->ctx));
+        return pc_error_trace(pc__convert_os_error(file->pool->ctx));
     }
 
     *amt_written = actual;
@@ -243,7 +219,7 @@ pc_error_t *pc_file_write(size_t *amt_written,
     actual = write(file->fd, buf, amt);
     if (actual == -1)
     {
-        return pc_error_trace(pc__convert_os_error(file->ctx));
+        return pc_error_trace(pc__convert_os_error(file->pool->ctx));
     }
 
     *amt_written = actual;
