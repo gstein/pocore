@@ -1,5 +1,5 @@
 /*
-  test_hash.c :  simple test of the hash table implementation
+  suite_hash.c :  test suite for the hash table implementation
 
   ====================================================================
     Copyright 2010 Greg Stein
@@ -24,18 +24,31 @@
 #include "pc_types.h"
 #include "pc_memory.h"
 
+#include "ctest/ctest.h"
 
-int main(int argc, const char **argv)
+
+CTEST(hash, basic)
 {
     pc_context_t *ctx = pc_context_create();
     pc_pool_t *pool = pc_pool_root(ctx);
     pc_hash_t *hash = pc_hash_create(pool);
+
+    /* Two addresses, same value.  */
     char val1[] = "/A";
     char val2[] = "/A";
 
-    printf("val1=%p  val2=%p\n", val1, val2);
-    pc_hash_sets(hash, val1, "hi");
-    pc_hash_sets(hash, val2, "bye");
+    /* Nothing in the hash table yet.  */
+    ASSERT_EQUAL(pc_hash_count(hash), 0);
+    ASSERT_NULL(pc_hash_gets(hash, val1));
+    ASSERT_NULL(pc_hash_gets(hash, val2));
 
-    return EXIT_SUCCESS;
+    /* Store a value and validate it.  */
+    pc_hash_sets(hash, val1, "hi");
+    ASSERT_STR(pc_hash_gets(hash, val1), "hi");
+    ASSERT_STR(pc_hash_gets(hash, val2), "hi");
+
+    /* Store through other address. Validate it.  */
+    pc_hash_sets(hash, val2, "bye");
+    ASSERT_STR(pc_hash_gets(hash, val1), "bye");
+    ASSERT_STR(pc_hash_gets(hash, val2), "bye");
 }

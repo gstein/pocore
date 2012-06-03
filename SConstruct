@@ -45,9 +45,11 @@ if not (env.GetOption('clean') or env.GetOption('help')):
 # TESTS
 
 tenv = env.Clone()
+tenv.Prepend(LIBS=['libpc-0', ],
+             LIBPATH=['.', ]
+             )
 
 TEST_PROGRAMS = [
-  'tests/test_hash.c',
   'tests/test_lookup.c',
   'tests/test_pools.c',
   'tests/test_wget.c',
@@ -56,6 +58,10 @@ if sys.platform == 'darwin':
   TEST_PROGRAMS.append('tests/test_memtree.c')
 
 for proggie in TEST_PROGRAMS:
-  tenv.Program(proggie,
-               LIBS=['libpc-0', 'libev', ],
-               LIBPATH=['.', os.path.join(LIBEV_DIR, '.libs'), ])
+  tenv.Program(proggie)
+
+# One program to run all the test suites.
+tenv.Program('tests/suite',
+             ['tests/ctest/main.c', ] + Glob('tests/suite_*.c'))
+
+env.AlwaysBuild(env.Alias('check', 'tests/suite', 'tests/suite'))
