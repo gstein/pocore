@@ -77,7 +77,7 @@
 #define ALLOC_BLOCK(ctx, size) alloc_block(size)
 #endif
 
-struct pc_block_s *alloc_block(
+static struct pc_block_s *alloc_block(
 #ifdef PC__IS_WINDOWS
     pc_context_t *ctx,
 #endif
@@ -106,7 +106,8 @@ struct pc_block_s *alloc_block(
     return block;
 }
 
-struct pc_block_s *get_block(pc_context_t *ctx)
+
+static struct pc_block_s *get_block(pc_context_t *ctx)
 {
     struct pc_block_s *result;
 
@@ -176,23 +177,10 @@ pc_pool_t *pc_pool_create_coalescing(pc_pool_t *parent)
 }
 
 
-void return_nonstd(pc_context_t *ctx, struct pc_block_s *blocks)
-{
-    /* Put all the blocks back into the context.  */
-    while (blocks != NULL)
-    {
-        struct pc_block_s *next = blocks->next;
-
-        pc__memtree_insert(&ctx->nonstd_blocks, blocks, blocks->size);
-
-        blocks = next;
-    }
-}
-
-
 void pc_pool_clear(pc_pool_t *pool)
 {
     pc_context_t *ctx = pool->ctx;
+    struct pc_block_s *nonstd;
 
     POOL_USABLE(pool);
 
@@ -268,9 +256,22 @@ void pc_pool_clear(pc_pool_t *pool)
         }
     }
 
-    /* Return all the non-standard-sized blocks to the context.  */
-    return_nonstd(ctx, pool->nonstd_blocks);
-    pool->nonstd_blocks = NULL;
+    /* Return all the non-standard-sized blocks to the context. Use a
+       local variable to avoid continual POOL dereferences.  */
+    if ((nonstd = pool->nonstd_blocks) != NULL)
+    {
+        do
+        {
+            struct pc_block_s *next = nonstd->next;
+
+            pc__memtree_insert(&ctx->nonstd_blocks, nonstd, nonstd->size);
+
+            nonstd = next;
+
+        } while (nonstd != NULL);
+
+        pool->nonstd_blocks = NULL;
+    }
 
     /* The pool structure is allocated in FIRST_BLOCK. We need to return any
        blocks allocated *after* that back to the context. These blocks are
