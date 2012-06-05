@@ -210,9 +210,10 @@ struct pc_pool_s {
        attempt to coalesce them?  */
     pc_bool_t coalesce;
 
-    /* Standard-size blocks are linked from the pool since a single block
-       may be shared across multiple posts.  */
-    struct pc_block_s *current_block;
+    /* Any extra blocks allocated for this pool. This never refers to the
+       block this pool occupies (the pool may not even reside in a block).  */
+    struct pc_block_s *extra_head;
+    struct pc_block_s *extra_tail;
 
     /* The first block allocated. This block, through .current_block, are
        all of the blocks associated with this pool.  */

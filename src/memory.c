@@ -138,7 +138,6 @@ pc_pool_t *pc_pool_root_custom(pc_context_t *ctx,
 
     pool->current = (char *)pool + sizeof(*pool);
     pool->endmem = (char *)block + block->size;
-    pool->current_block = block;
     pool->first_block = block;
     pool->ctx = ctx;
 
@@ -277,19 +276,15 @@ void pc_pool_clear(pc_pool_t *pool)
 
     /* The pool structure is allocated in FIRST_BLOCK. We need to return any
        blocks allocated *after* that back to the context. These blocks are
-       linked into list: HEAD is the block just after FIRST_BLOCK, and the
-       TAIL is CURRENT_BLOCK. Just quickly link those into the context.  */
-    if (pool->current_block != pool->first_block)
+       linked via EXTRA_HEAD/TAIL.  */
+    if (pool->extra_head != NULL)
     {
         /* Link the blocks.  */
-        pool->current_block->next = ctx->std_blocks;
-        ctx->std_blocks = pool->first_block->next;
+        pool->extra_tail->next = ctx->std_blocks;
+        ctx->std_blocks = pool->extra_head;
 
         /* Detach those blocks from our knowledge.  */
-        pool->first_block->next = NULL;
-
-        /* Retreat our block pointer to the original block.  */
-        pool->current_block = pool->first_block;
+        pool->extra_head = NULL;
     }
 
     /* Get ready for the next allocation.  */
@@ -340,11 +335,11 @@ void pc_pool_destroy(pc_pool_t *pool)
     pool->current = NULL;
 #endif
 
-    /* Return the last block (which also contains this pool) to
+    /* Return the remaining block (which also contains this pool) to
        the context.  */
-    assert(pool->current_block->next == NULL);
-    pool->current_block->next = pool->ctx->std_blocks;
-    pool->ctx->std_blocks = pool->current_block;
+    assert(pool->extra_head == NULL);
+    pool->first_block->next = pool->ctx->std_blocks;
+    pool->ctx->std_blocks = pool->first_block;
 }
 
 
@@ -389,8 +384,9 @@ internal_alloc(pc_pool_t *pool, size_t amt)
     /* Will the requested amount fit within a standard-sized block?  */
     if (amt <= pool->ctx->stdsize - sizeof(struct pc_block_s))
     {
-        /* There is likely space at the end of CURRENT_BLOCK, so save that
-           into the remnants tree.  */
+        /* There is likely space at the end of the current allocation
+           (ie. the space between CURRENT and ENDMEM), so save that into
+           the remnants tree.  */
         /* ### keep track of small bits?  */
         if (remaining > sizeof(struct pc_memtree_s))
         {
@@ -404,9 +400,17 @@ internal_alloc(pc_pool_t *pool, size_t amt)
 
         result = (char *)block + sizeof(*block);
 
-        /* Append the new block to the end of the pool's chain of blocks.  */
-        pool->current_block->next = block;
-        pool->current_block = block;
+        /* Remember that we grabbed an extra block for this pool. Place
+           it onto the tail of our list of blocks.  */
+        if (pool->extra_head == NULL)
+        {
+            pool->extra_head = pool->extra_tail = block;
+        }
+        else
+        {
+            pool->extra_tail->next = block;
+            pool->extra_tail = block;
+        }
 
         /* Set up the pointers for later allocations.  */
         pool->current = (char *)result + amt;
