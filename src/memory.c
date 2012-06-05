@@ -121,8 +121,11 @@ static struct pc_block_s *get_block(pc_context_t *ctx)
 }
 
 
-pc_pool_t *pc_pool_root(pc_context_t *ctx)
+pc_pool_t *pc_pool_root_custom(pc_context_t *ctx,
+                               size_t stdsize)
 {
+    /* ### need to use STDSIZE  */
+
     struct pc_block_s *block = get_block(ctx);
     pc_pool_t *pool;
 
@@ -134,6 +137,7 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
     memset(pool, 0, sizeof(*pool));
 
     pool->current = (char *)pool + sizeof(*pool);
+    pool->endmem = (char *)block + block->size;
     pool->current_block = block;
     pool->first_block = block;
     pool->ctx = ctx;
@@ -145,11 +149,9 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
 }
 
 
-pc_pool_t *pc_pool_root_custom(pc_context_t *ctx,
-                               size_t stdsize)
+pc_pool_t *pc_pool_root(pc_context_t *ctx)
 {
-    /* ### build a new memroot.  */
-    NOT_IMPLEMENTED();
+    return pc_pool_root_custom(ctx, ctx->stdsize);
 }
 
 
@@ -292,6 +294,7 @@ void pc_pool_clear(pc_pool_t *pool)
 
     /* Get ready for the next allocation.  */
     pool->current = (char *)pool + sizeof(*pool);
+    pool->endmem = (char *)pool->first_block + pool->first_block->size;
 
     /* All the extra blocks have been returned, and we've reset the "First"
        block. Thus, there are no more remnants.  */
@@ -353,8 +356,7 @@ internal_alloc(pc_pool_t *pool, size_t amt)
     struct pc_block_s *block;
 
     /* Can we provide the allocation out of the current block?  */
-    remaining = (((char *)pool->current_block + pool->current_block->size)
-                 - pool->current);
+    remaining = pool->endmem - pool->current;
     if (remaining >= amt)
     {
         result = pool->current;
@@ -395,6 +397,9 @@ internal_alloc(pc_pool_t *pool, size_t amt)
             pc__memtree_insert(&pool->remnants, pool->current, remaining);
         }
 
+        /* Grab a standard-sized block, and return a portion of it. There
+           may be memory after the result, usable for later allocations.  */
+
         block = get_block(pool->ctx);
 
         result = (char *)block + sizeof(*block);
@@ -403,7 +408,9 @@ internal_alloc(pc_pool_t *pool, size_t amt)
         pool->current_block->next = block;
         pool->current_block = block;
 
+        /* Set up the pointers for later allocations.  */
         pool->current = (char *)result + amt;
+        pool->endmem = (char *)block + block->size;
 
         return result;
     }

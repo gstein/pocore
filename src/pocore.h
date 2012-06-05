@@ -198,7 +198,12 @@ struct pc_context_s {
 
 
 struct pc_pool_s {
+    /* Where the next allocation will come from.  */
     char *current;
+
+    /* End of the useful/available memory, before we need to fetch another
+       block of memory to pass out.  */
+    char *endmem;
 
     /* Should allocations made in this pool be coalescable? Or more
        specifically: when memory is returned to this pool, should we
