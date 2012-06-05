@@ -408,21 +408,11 @@ void pc_pool_destroy(pc_pool_t *pool)
 
 
 static void *
-internal_alloc(pc_pool_t *pool, size_t amt)
+secondary_alloc(pc_pool_t *pool, size_t amt)
 {
-    size_t remaining;
     void *result;
     struct pc_block_s *block;
     pc_context_t *ctx;
-
-    /* Can we provide the allocation out of the current block?  */
-    remaining = pool->endmem - pool->current;
-    if (remaining >= amt)
-    {
-        result = pool->current;
-        pool->current += amt;
-        return result;
-    }
 
     /* The remnants tree might have a free block for us.  */
     block = pc__memtree_fetch(&pool->remnants, amt);
@@ -451,6 +441,8 @@ internal_alloc(pc_pool_t *pool, size_t amt)
     /* Will the requested amount fit within a standard-sized block?  */
     if (amt <= ctx->stdsize - sizeof(struct pc_block_s))
     {
+        size_t remaining = pool->endmem - pool->current;
+
         /* There is likely space at the end of the current allocation
            (ie. the space between CURRENT and ENDMEM), so save that into
            the remnants tree.  */
@@ -505,7 +497,24 @@ internal_alloc(pc_pool_t *pool, size_t amt)
 }
 
 
-static void *
+static PC__INLINE void *
+internal_alloc(pc_pool_t *pool, size_t amt)
+{
+    size_t remaining;
+    void *result;
+
+    /* Can we provide the allocation out of the current block?  */
+    remaining = pool->endmem - pool->current;
+    if (remaining < amt)
+        return secondary_alloc(pool, amt);
+
+    result = pool->current;
+    pool->current += amt;
+    return result;
+}
+
+
+static PC__INLINE void *
 coalesce_alloc(pc_pool_t *pool, size_t amt)
 {
     char *result = internal_alloc(pool, amt + sizeof(size_t));

@@ -59,6 +59,15 @@ size_t pc__linux_sockaddr_len(const struct sockaddr_storage *ss);
 #endif
 
 
+#ifdef PC__IS_WINDOWS
+#define PC__INLINE __inline
+#elif defined(__GNUC__) && __GNUC__ >= 3
+#define PC__INLINE inline
+#else
+#define PC__INLINE
+#endif
+
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
