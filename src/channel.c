@@ -609,7 +609,7 @@ pc_error_t *pc_address_lookup(pc_hash_t **addresses,
     int rv;
 
     if (port <= 0 || port > 65535)
-        return pc_error_create_xm(pool->ctx, PC_ERR_BAD_PARAM,
+        return pc_error_create_pm(pool, PC_ERR_BAD_PARAM,
                                   "port number out of range");
     snprintf(portbuf, sizeof(portbuf), "%d", port);
 
@@ -623,7 +623,7 @@ pc_error_t *pc_address_lookup(pc_hash_t **addresses,
     {
         const char *msg = gai_strerror(rv);
 
-        return pc_error_create_xm(pool->ctx, PC_ERR_ADDRESS_LOOKUP, msg);
+        return pc_error_create_pm(pool, PC_ERR_ADDRESS_LOOKUP, msg);
     }
 
     *addresses = pc_hash_create(pool);
