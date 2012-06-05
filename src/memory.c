@@ -131,15 +131,17 @@ static struct pc_memroot_s *alloc_memroot(pc_context_t *ctx,
 }
 
 
-static struct pc_block_s *get_block(pc_context_t *ctx)
+static struct pc_block_s *get_block(struct pc_memroot_s *memroot)
 {
     struct pc_block_s *result;
 
-    if (ctx->std_blocks == NULL)
-        return ALLOC_BLOCK(ctx, ctx->stdsize);
+    if (memroot->std_blocks == NULL)
+        return ALLOC_BLOCK(memroot->ctx, memroot->stdsize);
 
-    result = ctx->std_blocks;
-    ctx->std_blocks = result->next;
+    result = memroot->std_blocks;
+    memroot->std_blocks = result->next;
+
+    /* Re-initialize the block.  */
     result->next = NULL;
     return result;
 }
@@ -176,7 +178,7 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
 
 pc_pool_t *pc_pool_create(pc_pool_t *parent)
 {
-    struct pc_block_s *block = get_block(parent->memroot->ctx);
+    struct pc_block_s *block = get_block(parent->memroot);
     pc_pool_t *pool;
 
     /* ### align the structure size, rather than using +1 ?  */
@@ -310,8 +312,8 @@ void pc_pool_clear(pc_pool_t *pool)
     if (pool->extra_head != NULL)
     {
         /* Link the blocks.  */
-        pool->extra_tail->next = ctx->std_blocks;
-        ctx->std_blocks = pool->extra_head;
+        pool->extra_tail->next = pool->memroot->std_blocks;
+        pool->memroot->std_blocks = pool->extra_head;
 
         /* Detach those blocks from our knowledge.  */
         pool->extra_head = NULL;
@@ -373,10 +375,10 @@ void pc_pool_destroy(pc_pool_t *pool)
 
         /* This pool was allocated within a tree of pools. Thus, it used
            a standard-sized block for its allocation. Return that block
-           to the set in CTX.  */
+           to the set in MEMROOT.  */
         block = (struct pc_block_s *)((char *)pool - sizeof(*block));
-        block->next = ctx->std_blocks;
-        ctx->std_blocks = block;
+        block->next = memroot->std_blocks;
+        memroot->std_blocks = block;
     }
     else
     {
@@ -473,7 +475,7 @@ secondary_alloc(pc_pool_t *pool, size_t amt)
         /* Grab a standard-sized block, and return a portion of it. There
            may be memory after the result, usable for later allocations.  */
 
-        block = get_block(ctx);
+        block = get_block(pool->memroot);
 
         result = (char *)block + sizeof(*block);
 

@@ -139,11 +139,6 @@ struct pc_context_s {
        roots can set their own size using pc_pool_root_custom().  */
     size_t stdsize;
 
-#ifndef FIX_CODE_TO_USE_MEMROOT
-    /* A linked-list of available standard-sized blocks to use.  */
-    struct pc_block_s *std_blocks;
-#endif
-
     /* All the root pools allocated by this context.  */
     struct pc_memroot_s *memroots;
 

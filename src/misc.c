@@ -69,8 +69,6 @@ pc_context_t *pc_context_create_custom(size_t stdsize,
 
 void pc_context_destroy(pc_context_t *ctx)
 {
-    struct pc_block_s *scan = ctx->std_blocks;
-
     /* ### do something about unhandled errors?  */
 
     if (ctx->cctx != NULL)
@@ -89,16 +87,13 @@ void pc_context_destroy(pc_context_t *ctx)
     while (ctx->memroots != NULL)
         pc_pool_destroy(ctx->memroots->pool);
 
-    for (scan = ctx->std_blocks; scan != NULL; )
-    {
-        struct pc_block_s *next = scan->next;
-
-        PC__FREE(ctx, scan);
-        scan = next;
-    }
-
+    /* ### it would probably be best to just dig into the tree structure
+       ### rather than pop one out at a time, with the associated tree
+       ### rebalancing. ie. switch from O(N log N) to just O(N).  */
     while (ctx->nonstd_blocks != NULL)
     {
+        struct pc_block_s *scan;
+
         /* Keep fetching the smallest node possible until it runs out.  */
         scan = pc__memtree_fetch(&ctx->nonstd_blocks,
                                  sizeof(struct pc_memtree_s));
