@@ -75,10 +75,19 @@ void pc_context_destroy(pc_context_t *ctx)
 
     if (ctx->cctx != NULL)
         pc__channel_cleanup(ctx);
-    if (ctx->cleanup_pool != NULL)
-        pc_pool_destroy(ctx->cleanup_pool);
-    if (ctx->error_pool != NULL)
-        pc_pool_destroy(ctx->error_pool);
+
+    /* Blast all memroots. This will destroy CLEANUP_POOL, ERROR_POOL,
+       and anything the channel subsystem may have allocated.
+
+       Note: we destroy the head of the list, which is faster for
+       pc_pool_destroy() to pop the memroot from the list.
+
+       ### right now, pc__channel_cleanup() preemptively destroys its
+       ### private pool. that may continue to make sense if, say, we
+       ### provide a way to shut down the channel system, so it should
+       ### continue to manage its internal pool.  */
+    while (ctx->memroots != NULL)
+        pc_pool_destroy(ctx->memroots->pool);
 
     for (scan = ctx->std_blocks; scan != NULL; )
     {

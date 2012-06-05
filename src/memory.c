@@ -329,7 +329,8 @@ void pc_pool_clear(pc_pool_t *pool)
 
 void pc_pool_destroy(pc_pool_t *pool)
 {
-    pc_context_t *ctx = pool->memroot->ctx;
+    struct pc_memroot_s *memroot = pool->memroot;
+    pc_context_t *ctx = memroot->ctx;
 
     POOL_USABLE(pool);
 
@@ -385,11 +386,28 @@ void pc_pool_destroy(pc_pool_t *pool)
            part of a memroot. That memroot memory simply needs to be
            free'd.  */
 
+        /* Remove the memroot from the context. Note that this pushes
+           longer-lived pools to the tail of the list (eg. the context's
+           error and cleanup pools).  */
+        if (ctx->memroots == memroot)
+        {
+            ctx->memroots = memroot->next;
+        }
+        else
+        {
+            struct pc_memroot_s *scan_mr = ctx->memroots;
+
+            while (scan_mr->next != memroot)
+                scan_mr = scan_mr->next;
+
+            scan_mr->next = memroot->next;
+        }
+
         /* Get rid of all the blocks we allocated for this memroot.
 
            ### in the future, we can move these into the context's nonstd
            ### block storage for later reuse.  */
-        for (scan = pool->memroot->std_blocks; scan != NULL; )
+        for (scan = memroot->std_blocks; scan != NULL; )
         {
             struct pc_block_s *next = scan->next;
 
@@ -402,7 +420,7 @@ void pc_pool_destroy(pc_pool_t *pool)
            ### because we don't go look for new pool memory in the nonstd
            ### area. until we reuse that, create/destroy pool would malloc
            ### (unbounded) a new block for each pool.  */
-        PC__FREE(ctx, pool->memroot);
+        PC__FREE(ctx, memroot);
     }
 }
 
