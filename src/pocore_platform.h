@@ -20,6 +20,9 @@
   ====================================================================
 */
 
+#ifndef POCORE_PLATFORM_H
+#define POCORE_PLATFORM_H
+
 #if defined(__MACH__) && defined(__APPLE__)
 #define PC__IS_MACOSX
 
@@ -34,14 +37,16 @@
 
 #include <sys/socket.h>
 
-size_t
-pc__linux_sockaddr_len(const struct sockaddr_storage *ss);
-
 #endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
 
 #ifdef PC__IS_LINUX
 #define PC__SOCKADDR_LEN(ss) pc__linux_sockaddr_len(ss)
+size_t pc__linux_sockaddr_len(const struct sockaddr_storage *ss);
 #else
 #define PC__SOCKADDR_LEN(ss) ((ss)->ss_len)
 #endif
@@ -52,3 +57,10 @@ pc__linux_sockaddr_len(const struct sockaddr_storage *ss);
 #else
 #define PC__FREE(ctx, p) free(p)
 #endif
+
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* POCORE_PLATFORM_H */
