@@ -230,7 +230,14 @@ void pc_cleanup_before(pc_pool_t *pool,
     }
 
     /* Buh... we hit the end of the list without performing a re-ordering.
-       If we extracted AFTER from the list, then put it back (at HEAD).  */
+       If we extracted AFTER from the list, then put it back (at HEAD).
+
+       ### this is likely to be bad. it pulls AFTER to the front of the
+       ### list, possibly breaking other orderings against AFTER. should
+       ### probably switch this to append (SCAN still points to the last
+       ### cleanup record).
+
+       ### we should probably register an unhandled error.  */
     if (cl_after != NULL)
     {
         cl_after->next = pool->cleanups;
