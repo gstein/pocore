@@ -62,8 +62,7 @@
 #define MT_MAKE_RED(m)  ((m)->b.size |= 1)
 
 
-/* ### inline this  */
-static struct pc_memtree_s *
+static PC__INLINE struct pc_memtree_s *
 get_uncle(struct pc_memtree_s *parents[], int depth)
 {
     struct pc_memtree_s *gramps = MT_GRANDPARENT(parents, depth);
@@ -81,8 +80,7 @@ get_uncle(struct pc_memtree_s *parents[], int depth)
 
    OLD_ROOT will be pushed down, and NEW_ROOT lifted up. Pass a reference
    the the parent's link to OLD_ROOT so that we can update it.  */
-/* ### inline this  */
-static void
+static PC__INLINE void
 rotate_left(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 {
     (*old_root)->larger = new_root->smaller;
@@ -95,8 +93,7 @@ rotate_left(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 
    OLD_ROOT will be pushed down, and NEW_ROOT lifted up. Pass a reference
    the the parent's link to OLD_ROOT so that we can update it.  */
-/* ### inline this  */
-static void
+static PC__INLINE void
 rotate_right(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 {
     (*old_root)->smaller = new_root->larger;
@@ -119,8 +116,7 @@ rotate_right(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 
    NOTE: we also depend upon this behavior sometimes to look for the
    SIBLING rather than the target of the operation.  */
-/* ### inline this  */
-static struct pc_memtree_s **
+static PC__INLINE struct pc_memtree_s **
 get_reference(struct pc_memtree_s *parents[],
               int depth,
               const struct pc_memtree_s *node,
