@@ -64,6 +64,9 @@
   Heh. One answer is "wtf you doing allocating unbounded memory?"
 */
 
+#define SMALLEST_REMNANT sizeof(struct pc_memtree_s)
+
+
 #ifdef PC_DEBUG
 #define POOL_USABLE(pool) assert((pool)->current != NULL);
 #else
@@ -462,7 +465,7 @@ secondary_alloc(pc_pool_t *pool, size_t amt)
            back into the remnants tree.  */
         remnant_remaining = block->size - amt;
         /* ### keep track of small bits?  */
-        if (remnant_remaining > sizeof(struct pc_memtree_s))
+        if (remnant_remaining >= SMALLEST_REMNANT)
         {
             pc__memtree_insert(&pool->remnants,
                                (char *)block + amt,
@@ -483,7 +486,7 @@ secondary_alloc(pc_pool_t *pool, size_t amt)
            (ie. the space between CURRENT and ENDMEM), so save that into
            the remnants tree.  */
         /* ### keep track of small bits?  */
-        if (remaining > sizeof(struct pc_memtree_s))
+        if (remaining >= SMALLEST_REMNANT)
         {
             pc__memtree_insert(&pool->remnants, pool->current, remaining);
         }
@@ -576,7 +579,7 @@ void *pc_alloc(pc_pool_t *pool, size_t amt)
 void pc_pool_freemem(pc_pool_t *pool, void *mem, size_t len)
 {
     /* ### should we try and remember these small bits?  */
-    if (len < sizeof(struct pc_memtree_s))
+    if (len < SMALLEST_REMNANT)
         return;
 
     /* ### coalesce  */
