@@ -131,17 +131,18 @@ struct pc_context_s {
     HANDLE heap;
 #endif
 
-#ifndef FIX_CODE_TO_USE_MEMROOT
     /* When grabbing memory from the OS, what is the "standard size" to
-       grab each time?  */
+       grab each time? This size is used for pc_pool_root(). Individual
+       roots can set their own size using pc_pool_root_custom().  */
     size_t stdsize;
 
+#ifndef FIX_CODE_TO_USE_MEMROOT
     /* A linked-list of available standard-sized blocks to use.  */
     struct pc_block_s *std_blocks;
 #endif
 
     /* All the root pools allocated by this context.  */
-    struct pc_memroot_s *roots;
+    struct pc_memroot_s *memroots;
 
     /* A tree of non-standard-sized blocks. These are available for use
        on a best-fit basis.
@@ -215,9 +216,9 @@ struct pc_pool_s {
     struct pc_block_s *extra_head;
     struct pc_block_s *extra_tail;
 
-    /* The first block allocated. This block, through .current_block, are
-       all of the blocks associated with this pool.  */
-    struct pc_block_s *first_block;
+    /* For the initial allocation (which holds this structure), where is
+       the end of usable memory?  */
+    char *initial_endmem;
 
     /* Any remnants for later use by this pool.  */
     struct pc_memtree_s *remnants;
@@ -230,7 +231,7 @@ struct pc_pool_s {
     struct pc_context_s *ctx;
 
     /* The root of this tree of pools, specifying our configuration.  */
-    struct pc_memroot_s *root;
+    struct pc_memroot_s *memroot;
 
     /* The parent of this pool.  */
     struct pc_pool_s *parent;

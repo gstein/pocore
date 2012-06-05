@@ -107,6 +107,29 @@ static struct pc_block_s *alloc_block(
 }
 
 
+static struct pc_memroot_s *alloc_memroot(pc_context_t *ctx,
+                                          size_t stdsize)
+{
+    /* ### we should also grab mem from CTX->NONSTD_BLOCKS. the resulting
+       ### size could be non-standard. gotta adjust other stuff first.  */
+    struct pc_block_s *block = ALLOC_BLOCK(ctx, stdsize);
+    struct pc_memroot_s *memroot;
+
+    /* We can completely forget the pc_block_s. Recast.  */
+    memroot = (struct pc_memroot_s *)block;
+
+    /* memroot->pool set by caller.  */
+    memroot->stdsize = stdsize;
+    memroot->std_blocks = NULL;
+
+    /* Hook into the context.  */
+    memroot->next = ctx->memroots;
+    ctx->memroots = memroot;
+
+    return memroot;
+}
+
+
 static struct pc_block_s *get_block(pc_context_t *ctx)
 {
     struct pc_block_s *result;
@@ -124,22 +147,19 @@ static struct pc_block_s *get_block(pc_context_t *ctx)
 pc_pool_t *pc_pool_root_custom(pc_context_t *ctx,
                                size_t stdsize)
 {
-    /* ### need to use STDSIZE  */
-
-    struct pc_block_s *block = get_block(ctx);
+    struct pc_memroot_s *memroot = alloc_memroot(ctx, stdsize);
     pc_pool_t *pool;
 
-    /* ### align these sizeof values?  */
+    /* ### align the structure size, rather than using +1 ?  */
 
-    /* ### build a new memroot.  */
-
-    pool = (pc_pool_t *)((char *)block + sizeof(*block));
+    pool = (pc_pool_t *)(memroot + 1);
     memset(pool, 0, sizeof(*pool));
 
-    pool->current = (char *)pool + sizeof(*pool);
-    pool->endmem = (char *)block + block->size;
-    pool->first_block = block;
-    pool->ctx = ctx;
+    pool->current = (char *)(pool + 1);
+    pool->endmem = (char *)memroot + stdsize;
+    pool->initial_endmem = pool->endmem;
+    pool->ctx = ctx;  /* ### shift to memroot  */
+    pool->memroot = memroot;
 
     /* ### need to remember this pool, and destroy it at ctx destroy.
        ### see above memroot and ctx->roots.  */
@@ -156,11 +176,22 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
 
 pc_pool_t *pc_pool_create(pc_pool_t *parent)
 {
-    pc_pool_t *pool = pc_pool_root(parent->ctx);
+    struct pc_block_s *block = get_block(parent->ctx);
+    pc_pool_t *pool;
 
-    pool->parent = parent;
+    /* ### align the structure size, rather than using +1 ?  */
+
+    pool = (pc_pool_t *)(block + 1);
+    memset(pool, 0, sizeof(*pool));
+
+    pool->current = (char *)(pool + 1);
+    pool->endmem = (char *)block + block->size;
+    pool->initial_endmem = pool->endmem;
+    pool->ctx = parent->ctx;  /* ### shift to memroot  */
+    pool->memroot = parent->memroot;
 
     /* Hook this pool into the parent.  */
+    pool->parent = parent;
     pool->sibling = parent->child;
     parent->child = pool;
 
@@ -274,9 +305,9 @@ void pc_pool_clear(pc_pool_t *pool)
         pool->nonstd_blocks = NULL;
     }
 
-    /* The pool structure is allocated in FIRST_BLOCK. We need to return any
-       blocks allocated *after* that back to the context. These blocks are
-       linked via EXTRA_HEAD/TAIL.  */
+    /* The pool structure is allocated within memory defined by POOL and
+       INITIAL_ENDMEM. We need to return any blocks allocated *after* that
+       back to the context. These blocks are linked via EXTRA_HEAD/TAIL.  */
     if (pool->extra_head != NULL)
     {
         /* Link the blocks.  */
@@ -289,7 +320,7 @@ void pc_pool_clear(pc_pool_t *pool)
 
     /* Get ready for the next allocation.  */
     pool->current = (char *)pool + sizeof(*pool);
-    pool->endmem = (char *)pool->first_block + pool->first_block->size;
+    pool->endmem = pool->initial_endmem;
 
     /* All the extra blocks have been returned, and we've reset the "First"
        block. Thus, there are no more remnants.  */
@@ -304,10 +335,20 @@ void pc_pool_destroy(pc_pool_t *pool)
     /* Clear out everything in the pool.  */
     pc_pool_clear(pool);
 
+#ifdef PC_DEBUG
+    /* Leave a marker that we've destroyed this pool already. This will
+       also prevent further attempts at use.  */
+    pool->current = NULL;
+#endif
+
+    /* All extra blocks should have been returned.  */
+    assert(pool->extra_head == NULL);
+
     /* Remove this pool from the parent's list of child pools.  */
     if (pool->parent != NULL)
     {
         pc_pool_t *scan = pool->parent->child;
+        struct pc_block_s *block;
 
         if (scan == pool)
         {
@@ -327,19 +368,27 @@ void pc_pool_destroy(pc_pool_t *pool)
             /* ### assert scan != NULL  */
             scan->sibling = pool->sibling;
         }
+
+        /* This pool was allocated within a tree of pools. Thus, it used
+           a standard-sized block for its allocation. Return that block
+           to the set in CTX.  */
+        block = (struct pc_block_s *)((char *)pool - sizeof(*block));
+        block->next = pool->ctx->std_blocks;
+        pool->ctx->std_blocks = block;
     }
+    else
+    {
+        /* This is a root pool, so the pool structure was allocated as
+           part of a memroot. That memroot memory simply needs to be
+           free'd.  */
 
-#ifdef PC_DEBUG
-    /* Leave a marker that we've destroyed this pool already. This will
-       also prevent further attempts at use.  */
-    pool->current = NULL;
-#endif
-
-    /* Return the remaining block (which also contains this pool) to
-       the context.  */
-    assert(pool->extra_head == NULL);
-    pool->first_block->next = pool->ctx->std_blocks;
-    pool->ctx->std_blocks = pool->first_block;
+        /* ### in the future, we can insert the memory into the context's
+           ### NONSTD_BLOCKS for later reuse. can't do that right now
+           ### because we don't go look for new pool memory in the nonstd
+           ### area. until we reuse that, create/destroy pool would malloc
+           ### (unbounded) a new block for each pool.  */
+        PC__FREE(pool->ctx, pool->memroot);
+    }
 }
 
 
