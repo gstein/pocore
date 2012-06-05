@@ -506,9 +506,9 @@ pc_error_t *pc__error_create_internal_pn(pc_pool_t *pool,
                                          const char *file,
                                          int lineno)
 {
-    pc_errval_t errval = remap_code(pool->ctx, ns, code_or_val);
+    pc_errval_t errval = remap_code(pool->memroot->ctx, ns, code_or_val);
 
-    return create_error(pool->ctx, errval, NULL,
+    return create_error(pool->memroot->ctx, errval, NULL,
                         file, lineno, NULL);
 }
 
@@ -584,10 +584,10 @@ pc_error_t *pc__error_createf_internal_pn(pc_pool_t *pool,
 {
     pc_error_t *error;
     va_list ap;
-    pc_errval_t errval = remap_code(pool->ctx, ns, code_or_val);
+    pc_errval_t errval = remap_code(pool->memroot->ctx, ns, code_or_val);
 
     va_start(ap, lineno);
-    error = format_error(pool->ctx, errval, format,
+    error = format_error(pool->memroot->ctx, errval, format,
                          file, lineno, ap);
     va_end(ap);
 

@@ -116,6 +116,9 @@ struct pc_memroot_s {
     /* A linked-list of available standard-sized blocks to use.  */
     struct pc_block_s *std_blocks;
 
+    /* This memroot belongs to this context.  */
+    struct pc_context_s *ctx;
+
     /* The context maintains a list of roots. This connects the list.  */
     struct pc_memroot_s *next;
 };
@@ -226,9 +229,6 @@ struct pc_pool_s {
     /* Any nonstd-sized blocks allocated for this pool. These will
        be queued back into the context when we clear the pool.  */
     struct pc_block_s *nonstd_blocks;
-
-    /* The context this pool is associated with.  */
-    struct pc_context_s *ctx;
 
     /* The root of this tree of pools, specifying our configuration.  */
     struct pc_memroot_s *memroot;

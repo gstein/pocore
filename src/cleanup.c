@@ -92,15 +92,16 @@ void pc_cleanup_register(pc_pool_t *pool,
                          pc_cleanup_func_t cleanup)
 {
     struct pc_cleanup_list_s *cl;
+    pc_context_t *ctx = pool->memroot->ctx;
 
     /* We gotta have a cleanup pool once we start down that road...  */
-    if (pool->ctx->cleanup_pool == NULL)
-        pool->ctx->cleanup_pool = pc_pool_root(pool->ctx);
+    if (ctx->cleanup_pool == NULL)
+        ctx->cleanup_pool = pc_pool_root(ctx);
 
 #if 0
     if (pool->cleanup_hash == NULL)
     {
-        pool->cleanup_hash = pc_hash_create(pool->ctx->cleanup_pool);
+        pool->cleanup_hash = pc_hash_create(ctx->cleanup_pool);
     }
     else
     {
@@ -115,7 +116,7 @@ void pc_cleanup_register(pc_pool_t *pool,
 #endif
 
     /* Construct a new cleanup list record.  */
-    cl = get_cl(pool->ctx);
+    cl = get_cl(ctx);
     cl->data = data;
     cl->cleanup = cleanup;
 
@@ -133,7 +134,7 @@ void pc_cleanup_deregister(pc_pool_t *pool, const void *data)
 {
     pc_cleanup_func_t unused;
 
-    extract_cleanup(&unused, &pool->cleanups, pool->ctx, data);
+    extract_cleanup(&unused, &pool->cleanups, pool->memroot->ctx, data);
 }
 
 
@@ -242,7 +243,7 @@ void pc_cleanup_run(pc_pool_t *pool, const void *data)
 {
     pc_cleanup_func_t cleanup;
 
-    extract_cleanup(&cleanup, &pool->cleanups, pool->ctx, data);
+    extract_cleanup(&cleanup, &pool->cleanups, pool->memroot->ctx, data);
 
     if (cleanup != NULL)
         cleanup((/* const */ void *) data);

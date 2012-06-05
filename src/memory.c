@@ -121,6 +121,7 @@ static struct pc_memroot_s *alloc_memroot(pc_context_t *ctx,
     /* memroot->pool set by caller.  */
     memroot->stdsize = stdsize;
     memroot->std_blocks = NULL;
+    memroot->ctx = ctx;
 
     /* Hook into the context.  */
     memroot->next = ctx->memroots;
@@ -158,7 +159,6 @@ pc_pool_t *pc_pool_root_custom(pc_context_t *ctx,
     pool->current = (char *)(pool + 1);
     pool->endmem = (char *)memroot + stdsize;
     pool->initial_endmem = pool->endmem;
-    pool->ctx = ctx;  /* ### shift to memroot  */
     pool->memroot = memroot;
 
     /* ### need to remember this pool, and destroy it at ctx destroy.
@@ -176,7 +176,7 @@ pc_pool_t *pc_pool_root(pc_context_t *ctx)
 
 pc_pool_t *pc_pool_create(pc_pool_t *parent)
 {
-    struct pc_block_s *block = get_block(parent->ctx);
+    struct pc_block_s *block = get_block(parent->memroot->ctx);
     pc_pool_t *pool;
 
     /* ### align the structure size, rather than using +1 ?  */
@@ -187,7 +187,6 @@ pc_pool_t *pc_pool_create(pc_pool_t *parent)
     pool->current = (char *)(pool + 1);
     pool->endmem = (char *)block + block->size;
     pool->initial_endmem = pool->endmem;
-    pool->ctx = parent->ctx;  /* ### shift to memroot  */
     pool->memroot = parent->memroot;
 
     /* Hook this pool into the parent.  */
@@ -211,7 +210,7 @@ pc_pool_t *pc_pool_create_coalescing(pc_pool_t *parent)
 
 void pc_pool_clear(pc_pool_t *pool)
 {
-    pc_context_t *ctx = pool->ctx;
+    pc_context_t *ctx = pool->memroot->ctx;
     struct pc_block_s *nonstd;
 
     POOL_USABLE(pool);
@@ -330,6 +329,8 @@ void pc_pool_clear(pc_pool_t *pool)
 
 void pc_pool_destroy(pc_pool_t *pool)
 {
+    pc_context_t *ctx = pool->memroot->ctx;
+
     POOL_USABLE(pool);
 
     /* Clear out everything in the pool.  */
@@ -373,21 +374,35 @@ void pc_pool_destroy(pc_pool_t *pool)
            a standard-sized block for its allocation. Return that block
            to the set in CTX.  */
         block = (struct pc_block_s *)((char *)pool - sizeof(*block));
-        block->next = pool->ctx->std_blocks;
-        pool->ctx->std_blocks = block;
+        block->next = ctx->std_blocks;
+        ctx->std_blocks = block;
     }
     else
     {
+        struct pc_block_s *scan;
+
         /* This is a root pool, so the pool structure was allocated as
            part of a memroot. That memroot memory simply needs to be
            free'd.  */
+
+        /* Get rid of all the blocks we allocated for this memroot.
+
+           ### in the future, we can move these into the context's nonstd
+           ### block storage for later reuse.  */
+        for (scan = pool->memroot->std_blocks; scan != NULL; )
+        {
+            struct pc_block_s *next = scan->next;
+
+            PC__FREE(ctx, scan);
+            scan = next;
+        }
 
         /* ### in the future, we can insert the memory into the context's
            ### NONSTD_BLOCKS for later reuse. can't do that right now
            ### because we don't go look for new pool memory in the nonstd
            ### area. until we reuse that, create/destroy pool would malloc
            ### (unbounded) a new block for each pool.  */
-        PC__FREE(pool->ctx, pool->memroot);
+        PC__FREE(ctx, pool->memroot);
     }
 }
 
@@ -398,6 +413,7 @@ internal_alloc(pc_pool_t *pool, size_t amt)
     size_t remaining;
     void *result;
     struct pc_block_s *block;
+    pc_context_t *ctx;
 
     /* Can we provide the allocation out of the current block?  */
     remaining = pool->endmem - pool->current;
@@ -430,8 +446,10 @@ internal_alloc(pc_pool_t *pool, size_t amt)
         return result;
     }
 
+    ctx = pool->memroot->ctx;
+
     /* Will the requested amount fit within a standard-sized block?  */
-    if (amt <= pool->ctx->stdsize - sizeof(struct pc_block_s))
+    if (amt <= ctx->stdsize - sizeof(struct pc_block_s))
     {
         /* There is likely space at the end of the current allocation
            (ie. the space between CURRENT and ENDMEM), so save that into
@@ -445,7 +463,7 @@ internal_alloc(pc_pool_t *pool, size_t amt)
         /* Grab a standard-sized block, and return a portion of it. There
            may be memory after the result, usable for later allocations.  */
 
-        block = get_block(pool->ctx);
+        block = get_block(ctx);
 
         result = (char *)block + sizeof(*block);
 
@@ -472,9 +490,9 @@ internal_alloc(pc_pool_t *pool, size_t amt)
     {
         size_t required = sizeof(*block) + amt;
 
-        block = pc__memtree_fetch(&pool->ctx->nonstd_blocks, required);
+        block = pc__memtree_fetch(&ctx->nonstd_blocks, required);
         if (block == NULL)
-            block = ALLOC_BLOCK(pool->ctx, required);
+            block = ALLOC_BLOCK(ctx, required);
 
         block->next = pool->nonstd_blocks;
         pool->nonstd_blocks = block;

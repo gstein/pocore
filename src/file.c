@@ -104,7 +104,7 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
     (*new_file)->fd = open(path, openflags, 0777);
     if ((*new_file)->fd == -1)
     {
-        return pc_error_trace(pc__convert_os_error(pool->ctx));
+        return pc_error_trace(pc__convert_os_error(pool->memroot->ctx));
     }
 
     if (mode == PC_FILE_OPEN_APPEND)
@@ -178,7 +178,7 @@ pc_error_t *pc_file_read(size_t *amt_read,
 
     if (!ReadFile(file->handle, buf, amt, &actual, NULL))
     {
-        return pc_error_trace(pc__convert_os_error(file->pool->ctx));
+        return pc_error_trace(pc__convert_os_error(file->pool->memroot->ctx));
     }
 
     *amt_read = actual;
@@ -188,7 +188,7 @@ pc_error_t *pc_file_read(size_t *amt_read,
     actual = read(file->fd, buf, amt);
     if (actual == -1)
     {
-        return pc_error_trace(pc__convert_os_error(file->pool->ctx));
+        return pc_error_trace(pc__convert_os_error(file->pool->memroot->ctx));
     }
 
     *amt_read = actual;
@@ -209,7 +209,7 @@ pc_error_t *pc_file_write(size_t *amt_written,
 
     if (!WriteFile(file->handle, buf, amt, &actual, NULL))
     {
-        return pc_error_trace(pc__convert_os_error(file->pool->ctx));
+        return pc_error_trace(pc__convert_os_error(file->pool->memroot->ctx));
     }
 
     *amt_written = actual;
@@ -219,7 +219,7 @@ pc_error_t *pc_file_write(size_t *amt_written,
     actual = write(file->fd, buf, amt);
     if (actual == -1)
     {
-        return pc_error_trace(pc__convert_os_error(file->pool->ctx));
+        return pc_error_trace(pc__convert_os_error(file->pool->memroot->ctx));
     }
 
     *amt_written = actual;
