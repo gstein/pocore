@@ -237,6 +237,8 @@ void pc_pool_clear(pc_pool_t *pool)
     */
 
     {
+        struct pc_cleanup_list_s *cl_head;
+
         /* While the pool is still intact, run all registered cleanups.
 
            These cleanups are *ordered*, based on calls to
@@ -248,9 +250,10 @@ void pc_pool_clear(pc_pool_t *pool)
            longer lifetime which is sitting in this pool), or maybe
            something from a child pool.
 
-           NOTE: implementation detail: this will run until the cleanup
-           list is empty. If cleanup handlers attach more cleanups, then
-           they will be executed immediately.
+           NOTE: implementation detail: cleanups "disappear" while they
+           are being run. Cleanup handlers cannot call pc_cleanup_before()
+           with any of cleanups that are being run. New cleanups can be
+           registered, and they can be ordered.
 
            NOTE: if child pool destruction happens to attach a cleanup
            to *this* pool, then we return and run the cleanup(s) while
@@ -258,16 +261,29 @@ void pc_pool_clear(pc_pool_t *pool)
            running the cleanup takes priority over destroying any
            child pools.
         */
-        while (pool->cleanups != NULL)
+      run_cleanups:
+        while ((cl_head = pool->cleanups) != NULL)
         {
-            struct pc_cleanup_list_s *cl;
+            struct pc_cleanup_list_s *cl = cl_head;
 
-          run_cleanups:
-            cl = pool->cleanups;
+            /* Extract the entire list of cleanups from the pool.  */
+            pool->cleanups = NULL;
 
-            /* Yank CL from the list of cleanups, then run it.  */
-            pool->cleanups = cl->next;
-            cl->cleanup((/* const */ void *)cl->data);
+            /* Run all the cleanups, in order.  */
+            while (TRUE)
+            {
+                cl->cleanup((/* const */ void *)cl->data);
+
+                /* Break before we set CL to NULL.  */
+                if (cl->next == NULL)
+                    break;
+                cl = cl->next;
+            }
+
+            /* Insert the entire list of cleanup records into the context's
+               free list.  */
+            cl->next = ctx->free_cl;
+            ctx->free_cl = cl_head;
         }
 
         /* Destroy all the child pools. Children will remove themselves
