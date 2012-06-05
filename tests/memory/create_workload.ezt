@@ -220,8 +220,8 @@ print_mem(void)
                   &t_info_count) != KERN_SUCCESS)
         printf("memory usage: N/A\n");
     else
-        printf("memory usage: rss  =%d   vs = %d\n",
-               t_info.resident_size, t_info.virtual_size);
+        printf("memory usage: rss = %ld   vs = %ld\n",
+               (long)t_info.resident_size, (long)t_info.virtual_size);
 }
 
 
