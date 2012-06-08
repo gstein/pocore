@@ -255,19 +255,38 @@ struct pc_pool_s {
 
    Note that the size of this structure provides a minimize size for
    remnants. If a remnant is smaller than this structure, it is simply
-   "thrown away".
+   "thrown away". (Actually, remnants' minimum size is this structure
+   plus a size_t, to support memory coalescing)
+
+   The context structure also has a tree to hold blocks from the pool
+   clearing process. These will be non-standard sizes (acoording to
+   the memroot's definition of "standard size") returned during the
+   clearing of a pool. The memroot holds standard-sized blocks, and
+   they will be shifted to the context upon destruction of the memroot.
+   ### right now, we free the blocks during memroot destruction
 
    We use red-black trees to guarantee worst-case time of O(log n) for
    all operations on this tree. We cannot afford O(n) worst case. For
    more information on red-black trees, see:
      http://en.wikipedia.org/wiki/Red-black_tree
+
+   ### this needs to be tweaked. when we place same-sized blocks onto
+   ### the linked list from the memtree node, we need to establish a
+   ### DOUBLY-linked list. this will allow for O(1) removal during
+   ### coalescing involving this remnant, or O(log N) if the remnant
+   ### is a live node in the tree. we can use SMALLER and LARGER for
+   ### the two links. the live node uses B.NEXT to point to the head
+   ### of the linked list. when examining a free'd item, we can check
+   ### B.NEXT for a singleton value (it's in the list), or it is NULL
+   ### (in-tree node, no additional remnants of the same size), or
+   ### non-NULL (in-tree node, pointing to head of same-sized remnants).
 */
 struct pc_memtree_s {
     /* The block contains this node's size, and NEXT field links to other
        (free) blocks of this same size.
 
        Note that the size's low-order bit is a flag. See the various
-       macros in red_black.c.  */
+       macros in memtree.c.  */
     struct pc_block_s b;
 
     /* Any pieces that are SMALLER than this piece.  */
@@ -343,16 +362,23 @@ struct pc_errmap_s {
 };
 
 
-/* ### docco  */
+/* Insert the block at MEM, of SIZE, into the tree at ROOT.  */
 void
 pc__memtree_insert(struct pc_memtree_s **root,
                    void *mem,
                    size_t size);
 
 
-/* ### docco  */
+/* Find a block of at least SIZE in the tree at ROOT. Return that block.
+   If no such block is available, then return NULL.  */
 struct pc_block_s *
 pc__memtree_fetch(struct pc_memtree_s **root, size_t size);
+
+
+/* MEM refers to a remnant (of SIZE) in the tree at ROOT. Extract it
+   from the tree.  */
+void
+pc__memtree_extract(struct pc_memtree_s **root, void *mem, size_t size);
 
 
 /* Lazy-initialize the mutex within CTX.  */

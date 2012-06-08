@@ -64,7 +64,9 @@
   Heh. One answer is "wtf you doing allocating unbounded memory?"
 */
 
-#define SMALLEST_REMNANT sizeof(struct pc_memtree_s)
+/* Nodes in the remnant tree require the struct for record keeping, and
+   we need a size_t for the coalescing algorithm.  */
+#define SMALLEST_REMNANT (sizeof(struct pc_memtree_s) + sizeof(size_t))
 
 
 #ifdef PC_DEBUG
