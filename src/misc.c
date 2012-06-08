@@ -19,6 +19,7 @@
 */
 
 #include <string.h>
+#include <ctype.h>
 
 #include "pc_types.h"
 #include "pc_misc.h"
@@ -136,4 +137,95 @@ void pc_lib_version(
     *major = PC_MAJOR_VERSION;
     *minor = PC_MINOR_VERSION;
     *patch = PC_PATCH_VERSION;
+}
+
+
+void pc_uuid_create(pc_uuid_t *uuid_out)
+{
+    /* ### do something here.  */
+}
+
+
+void pc_uuid_format(char *human_out, const pc_uuid_t *uuid)
+{
+    const uint8_t *b = &uuid->bytes[0];
+
+    sprintf(human_out,
+            "%02X%02X%02X%02X-%02X%02X-%02X%02X-%02X%02X"
+            "-%02X%02X%02X%02X%02X%02X",
+            b[0], b[1], b[ 2], b[ 3], b[ 4], b[ 5], b[ 6], b[ 7],
+            b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]);
+}
+
+
+/* C1 and C2 have been validated as hex digits.  */
+static uint8_t parse_byte(char c1, char c2)
+{
+    uint8_t v;
+
+    if (c1 >= 'a')
+        v = (c1 - 'a' + 10) << 4;
+    else if (c1 >= 'A')
+        v = (c1 - 'A' + 10) << 4;
+    else
+        v = (c1 - '0') << 4;
+
+    if (c2 >= 'a')
+        return v | (c2 - 'a' + 10);
+    if (c2 >= 'A')
+        return v | (c2 - 'A' + 10);
+    return v | (c2 - '0');
+}
+
+
+pc_bool_t pc_uuid_parse(pc_uuid_t *uuid_out, const char *human)
+{
+    int i;
+    uint8_t *b;
+
+    for (i = 0; i < 36; ++i)
+    {
+	char c = human[i];
+
+        /* If these four locations do not have '-', or the other locations
+           are not hex digits, then we have an incorrect format.  */
+        if (i == 8 || i == 13 || i == 18 || i == 23)
+        {
+            if (c != '-')
+                return TRUE;
+        }
+        else if (!isxdigit(c))
+            return TRUE;
+    }
+    if (human[36] != '\0')
+        return TRUE;
+
+    b = uuid_out->bytes;
+
+    b[ 0] = parse_byte(human[ 0], human[ 1]);
+    b[ 1] = parse_byte(human[ 2], human[ 3]);
+    b[ 2] = parse_byte(human[ 4], human[ 5]);
+    b[ 3] = parse_byte(human[ 6], human[ 7]);
+
+    /* - */
+
+    b[ 4] = parse_byte(human[ 9], human[10]);
+    b[ 5] = parse_byte(human[11], human[12]);
+
+    /* - */
+
+    b[ 6] = parse_byte(human[14], human[15]);
+    b[ 7] = parse_byte(human[16], human[17]);
+
+    /* - */
+
+    b[ 8] = parse_byte(human[19], human[20]);
+    b[ 9] = parse_byte(human[21], human[22]);
+
+    /* - */
+
+    for (i = 6; i--; )
+        b[i + 10] = parse_byte(human[24 + i*2], human[25 + i*2]);
+
+    return FALSE;
 }

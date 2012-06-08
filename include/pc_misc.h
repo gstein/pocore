@@ -21,6 +21,8 @@
 #ifndef PC_MISC_H
 #define PC_MISC_H
 
+#include <stdint.h>
+
 /* ### is this always the correct header?  */
 #include <stdlib.h>  /* for size_t  */
 
@@ -63,8 +65,7 @@ void pc_context_tracing(pc_context_t *ctx, pc_bool_t tracing);
 pc_error_t *pc_context_unhandled(pc_context_t *ctx);
 
 
-/* ### uuid  */
-
+/* VERSION INFORMATION  */
 
 /* Utility macro to produce a string containing the *value* of MACRO, rather
    than a string of MACRO itself. This works because PC_STRINGIFY() and its
@@ -110,6 +111,37 @@ void pc_lib_version(
     int *major,
     int *minor,
     int *patch);
+
+
+/* UUID GENERATION AND UTILITIES  */
+
+typedef struct pc_uuid_s {
+    uint8_t bytes[16];
+} pc_uuid_t;
+
+
+/* Create a new UUID and store it into @a uuid_out.  */
+void pc_uuid_create(pc_uuid_t *uuid_out);
+
+
+/* Format @a uuid into the standard human-readable format:
+
+     00112233-4455-6677-8899-AABBCCDDEEFF
+
+   The output buffer (@a human) must be at least 37 bytes, in order to
+   hold the above string, and a terminating NUL character.
+
+   Note: the return value uses upper-case hex digits.  */
+void pc_uuid_format(char *human_out, const pc_uuid_t *uuid);
+
+
+/* Parse a human-readable string from @a human, into @a uuid_out. The input
+   should match the format specific in pc_uuid_format(), and should be
+   NUL-terminated.
+
+   If there is an error during the parse (due to incorrectly formatted
+   input), then TRUE is returned. FALSE is returned for success.  */
+pc_bool_t pc_uuid_parse(pc_uuid_t *uuid_out, const char *human);
 
 
 #ifdef __cplusplus
