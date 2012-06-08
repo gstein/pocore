@@ -18,6 +18,8 @@
   ====================================================================
 */
 
+#include <string.h>
+
 #include "pc_misc.h"
 
 #include "ctest/ctest.h"
@@ -33,6 +35,25 @@ static const char *human2b = "202a417c-7800-2334-657d-5a1f2461374d";
 
 #define ASSERT_UUID_EQUAL(u1, u2) \
     ASSERT_TRUE(memcmp((u1).bytes, (u2).bytes, 16) == 0)
+
+
+CTEST(uuid, create)
+{
+    pc_uuid_t uuid = { { 0 } };
+    int i;
+    char human[37];
+
+    pc_uuid_create(&uuid);
+    pc_uuid_format(human, &uuid);
+    CTEST_LOG("uuid: %s", human);
+
+    /* Best we can do is see if *something* was put into the UUID. Note
+       that one/more of the bytes may be 0.  */
+    for (i = 16; i--; )
+        if (uuid.bytes[i] != 0)
+            break;
+    ASSERT_NOT_EQUAL(-1, i);
+}
 
 
 CTEST(uuid, formatting)

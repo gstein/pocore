@@ -37,6 +37,9 @@
 
 #include <sys/socket.h>
 
+#elif defined(__FreeBSD__) || defined(__NetBSD__)
+#define PC__IS_BSD
+
 #endif
 
 #ifdef __cplusplus
@@ -65,6 +68,19 @@ size_t pc__linux_sockaddr_len(const struct sockaddr_storage *ss);
 #define PC__INLINE inline
 #else
 #define PC__INLINE
+#endif
+
+
+/* Various stuff for UUID generation.  */
+#if defined(PC__IS_WINDOWS)
+void pc__windows_uuid_create(pc_uuid_t *uuid_out);
+#elif defined(PC__IS_BSD)
+void pc__bsd_uuid_create(pc_uuid_t *uuid_out);
+#endif
+
+/* ### this should be an scons feature test. hack for now.  */
+#if defined(PC__IS_MACOSX) || defined(PC__IS_LINUX)
+#define PC__USE_UUID_GENERATE
 #endif
 
 

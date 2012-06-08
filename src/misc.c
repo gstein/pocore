@@ -27,6 +27,10 @@
 
 #include "pocore.h"
 
+#ifdef PC__USE_UUID_GENERATE
+#include <uuid/uuid.h>
+#endif
+
 
 pc_context_t *pc_context_create(void)
 {
@@ -142,7 +146,20 @@ void pc_lib_version(
 
 void pc_uuid_create(pc_uuid_t *uuid_out)
 {
-    /* ### do something here.  */
+#if defined(PC__IS_WINDOWS)
+    pc__windows_uuid_create(uuid_out);
+#elif defined(PC__IS_BSD)
+    pc__bsd_uuid_create(uuid_out);
+#elif defined(PC__USE_UUID_GENERATE)
+    {
+        uuid_t out;
+
+        uuid_generate(out);
+        memcpy(&uuid_out->bytes[0], &out, 16);
+    }
+#else
+#error uuid support was not discovered
+#endif
 }
 
 
