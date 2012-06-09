@@ -79,7 +79,17 @@ get_uncle(struct pc_memtree_s *parents[], int depth)
 /* See: http://en.wikipedia.org/wiki/Tree_rotation
 
    OLD_ROOT will be pushed down, and NEW_ROOT lifted up. Pass a reference
-   the the parent's link to OLD_ROOT so that we can update it.  */
+   the the parent's link to OLD_ROOT so that we can update it.
+
+       OLD                 NEW
+      /   \               /   \
+     X     NEW    =>   OLD     Z
+          /   \       /   \
+         Y     Z     X     Y
+
+   An in-order traversal produces the same sequence; thus, this transform
+   is legal, retaining the tree's ordering properties.
+*/
 static PC__INLINE void
 rotate_left(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 {
@@ -92,7 +102,17 @@ rotate_left(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 /* See: http://en.wikipedia.org/wiki/Tree_rotation
 
    OLD_ROOT will be pushed down, and NEW_ROOT lifted up. Pass a reference
-   the the parent's link to OLD_ROOT so that we can update it.  */
+   the the parent's link to OLD_ROOT so that we can update it.
+
+         OLD            NEW
+        /   \          /   \
+     NEW     Z   =>   X     OLD
+    /   \                  /   \
+   X     Y                Y     Z
+
+   An in-order traversal produces the same sequence; thus, this transform
+   is legal, retaining the tree's ordering properties.
+*/
 static PC__INLINE void
 rotate_right(struct pc_memtree_s *new_root, struct pc_memtree_s **old_root)
 {
