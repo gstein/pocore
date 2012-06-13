@@ -73,7 +73,7 @@ pc_bool_t pc_atomic_swap(volatile int32_t *mem,
 #if defined(PC__IS_MACOSX)
     return OSAtomicCompareAndSwap32Barrier(check_val, new_val, mem);
 #elif defined(PC__IS_WINDOWS)
-    return InterlockedCompareExchange(mem, new_val, check_val);
+    return InterlockedCompareExchange(mem, new_val, check_val) == check_val;
 #else
 #error Atomics are not supported on this platform
 #endif
@@ -87,7 +87,7 @@ pc_bool_t pc_atomic_swapptr(void * volatile *mem,
 #if defined(PC__IS_MACOSX)
     return OSAtomicCompareAndSwapPtrBarrier(check_ptr, new_ptr, mem);
 #elif defined(PC__IS_WINDOWS)
-    return InterlockedCompareExchangePointer(mem, new_ptr, check_ptr);
+    return InterlockedCompareExchangePointer(mem, new_ptr, check_ptr) == check_ptr;
 #else
 #error Atomics are not supported on this platform
 #endif
