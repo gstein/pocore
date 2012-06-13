@@ -129,6 +129,13 @@ void pc_array_delete(pc_array_t *ary, int idx);
 
 #define PC_ARRAY_COUNT(ary) ((ary)->count)
 
+#if !defined(__GNUC__) && !defined(__attribute__)
+#define __attribute__(__x)
+#endif
+
+#ifdef _MSC_VER
+typedef ptrdiff_t ssize_t;
+#endif
 
 #ifdef __cplusplus
 }
