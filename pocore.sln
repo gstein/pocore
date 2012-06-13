@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pocore", "src\pocore.vcxproj", "{0D940658-E433-4885-9C7C-B97BC04F3317}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_pools", "tests\test_pools.vcxproj", "{DF944771-39ED-4F8A-BD55-04066F81F12F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0D940658-E433-4885-9C7C-B97BC04F3317} = {0D940658-E433-4885-9C7C-B97BC04F3317}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_lookup", "tests\test_lookup.vcxproj", "{7E6ECEBA-264D-4296-8A1E-3BCF6E35BF04}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0D940658-E433-4885-9C7C-B97BC04F3317}.Debug|Win32.ActiveCfg = Debug|Win32
+		{0D940658-E433-4885-9C7C-B97BC04F3317}.Debug|Win32.Build.0 = Debug|Win32
+		{0D940658-E433-4885-9C7C-B97BC04F3317}.Release|Win32.ActiveCfg = Release|Win32
+		{0D940658-E433-4885-9C7C-B97BC04F3317}.Release|Win32.Build.0 = Release|Win32
+		{DF944771-39ED-4F8A-BD55-04066F81F12F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{DF944771-39ED-4F8A-BD55-04066F81F12F}.Debug|Win32.Build.0 = Debug|Win32
+		{DF944771-39ED-4F8A-BD55-04066F81F12F}.Release|Win32.ActiveCfg = Release|Win32
+		{DF944771-39ED-4F8A-BD55-04066F81F12F}.Release|Win32.Build.0 = Release|Win32
+		{7E6ECEBA-264D-4296-8A1E-3BCF6E35BF04}.Debug|Win32.ActiveCfg = Debug|Win32
+		{7E6ECEBA-264D-4296-8A1E-3BCF6E35BF04}.Debug|Win32.Build.0 = Debug|Win32
+		{7E6ECEBA-264D-4296-8A1E-3BCF6E35BF04}.Release|Win32.ActiveCfg = Release|Win32
+		{7E6ECEBA-264D-4296-8A1E-3BCF6E35BF04}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
