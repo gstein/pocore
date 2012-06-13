@@ -93,7 +93,7 @@ static struct pc_block_s *alloc_block(
     /* ### should get a block from the context. for now: early bootstrap
        ### with a simple malloc.  */
 #ifdef PC__IS_WINDOWS
-    block = HeapAlloc(ctx->heap, 0 /* dwFlags */, size)
+    block = HeapAlloc(ctx->heap, 0 /* dwFlags */, size);
 #elif 1
     block = malloc(size);
 #else
