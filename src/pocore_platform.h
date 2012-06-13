@@ -29,18 +29,39 @@
 #elif defined(_WIN32)
 #define PC__IS_WINDOWS
 
-/* Go ahead and include this here/now. It has everything.  */
-#include <windows.h>
-
 #elif defined(__linux__)
 #define PC__IS_LINUX
-
-#include <sys/socket.h>
 
 #elif defined(__FreeBSD__) || defined(__NetBSD__)
 #define PC__IS_BSD
 
 #endif
+
+#ifdef PC__IS_WINDOWS
+
+/* Go ahead and include this here/now. It has everything.  */
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <ws2tcpip.h>
+#include <Objbase.h>  /* for CoCreateGuid() */
+
+#else
+#include <sys/types.h>
+#include <sys/socket.h>  /* for AF_*, SOCK_*  */
+#include <sys/mman.h>
+#include <netinet/in.h>  /* for IPPROTO_*  */
+#include <netinet/tcp.h>  /* for TCP_NODELAY  */
+#include <arpa/inet.h>  /* for inet_ntop()  */
+#include <netdb.h>  /* for getaddrinfo()  */
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
+#ifdef PC__IS_MACOSX
+#include <libkern/OSAtomic.h>
+#endif
+
+#include "pc_misc.h"
 
 #ifdef __cplusplus
 extern "C" {

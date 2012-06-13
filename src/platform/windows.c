@@ -18,7 +18,7 @@
   ====================================================================
 */
 
-#include <windows.h>
+#include "pocore.h"
 
 
 void pc__windows_uuid_create(pc_uuid_t *uuid_out)

@@ -22,7 +22,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include <sys/mman.h>
 
 #include "pc_types.h"
 #include "pc_memory.h"

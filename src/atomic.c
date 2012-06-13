@@ -23,13 +23,6 @@
 #include "pocore.h"
 #include "pocore_platform.h"
 
-#ifdef PC__IS_MACOSX
-#include <libkern/OSAtomic.h>
-#endif
-#ifdef PC__IS_WINDOWS
-#include <Windows.h>
-#endif
-
 /* ### see http://trac.mcs.anl.gov/projects/openpa/   */
 
 

@@ -18,22 +18,6 @@
   ====================================================================
 */
 
-#include <sys/types.h>
-#include <sys/socket.h>  /* for AF_*, SOCK_*  */
-#include <netinet/in.h>  /* for IPPROTO_*  */
-#include <netinet/tcp.h>  /* for TCP_NODELAY  */
-#include <arpa/inet.h>  /* for inet_ntop()  */
-#include <netdb.h>  /* for getaddrinfo()  */
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <stdio.h>  /* for snprintf()  */
-#include <assert.h>
-
-/* ### build out prototype on libev to validate the API and model.  */
-#include <ev.h>
-/* ### also see https://github.com/joyent/libuv  */
-
 #include "pc_types.h"
 #include "pc_channel.h"
 #include "pc_error.h"
@@ -41,6 +25,11 @@
 
 #include "pocore.h"
 
+#ifndef PC__IS_WINDOWS
+/* ### build out prototype on libev to validate the API and model.  */
+#include <ev.h>
+/* ### also see https://github.com/joyent/libuv  */
+#endif
 
 /* ### some handy information on (unix) sockets:
    ###   http://www.retran.com/beej/inet_ntopman.html
