@@ -48,13 +48,16 @@
 #else
 #include <sys/types.h>
 #include <sys/socket.h>  /* for AF_*, SOCK_*  */
-#include <sys/mman.h>
 #include <netinet/in.h>  /* for IPPROTO_*  */
 #include <netinet/tcp.h>  /* for TCP_NODELAY  */
 #include <arpa/inet.h>  /* for inet_ntop()  */
 #include <netdb.h>  /* for getaddrinfo()  */
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/mman.h>
+#include <errno.h>
+#include <stdio.h>
+#include <assert.h>
 #endif
 
 #ifdef PC__IS_MACOSX
