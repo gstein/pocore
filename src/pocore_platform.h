@@ -105,6 +105,7 @@ void pc__bsd_uuid_create(pc_uuid_t *uuid_out);
 /* ### this should be an scons feature test. hack for now.  */
 #if defined(PC__IS_MACOSX) || defined(PC__IS_LINUX)
 #define PC__USE_UUID_GENERATE
+#include <uuid/uuid.h>
 #endif
 
 

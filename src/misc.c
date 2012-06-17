@@ -27,10 +27,6 @@
 
 #include "pocore.h"
 
-#ifdef PC__USE_UUID_GENERATE
-#include <uuid/uuid.h>
-#endif
-
 
 pc_context_t *pc_context_create(void)
 {
