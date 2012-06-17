@@ -630,17 +630,17 @@ void *pc_memdup(pc_pool_t *pool, void *mem, size_t len)
 
 char *pc_strcat(pc_pool_t *pool, ...)
 {
-    return NULL;
+    NOT_IMPLEMENTED();
 }
 
 
 char *pc_vsprintf(pc_pool_t *pool, const char *fmt, va_list ap)
 {
-    return NULL;
+    NOT_IMPLEMENTED();
 }
 
 
 char *pc_sprintf(pc_pool_t *pool, const char *fmt, ...)
 {
-    return NULL;
+    NOT_IMPLEMENTED();
 }
