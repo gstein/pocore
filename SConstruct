@@ -3,24 +3,54 @@
 import sys
 import os
 
-opts = Variables()
-opts.Add(PathVariable('PREFIX',
-                      'Directory to install under',
-                      '/usr/local',
-                      PathVariable.PathIsDir))
+# where we save the configuration variables
+SAVED_CONFIG = '.saved_config'
 
-### do some searching or a param or something. future.
-LIBEV_DIR = '../../libev-4.04'
+opts = Variables(files=[SAVED_CONFIG])
+opts.AddVariables(
+  PathVariable('PREFIX',
+               'Directory to install under',
+               '/usr/local',
+               PathVariable.PathIsDir),
+  PathVariable('EV',
+               "Path to libev's install area, or build area",
+               '/usr',
+               PathVariable.PathIsDir),
+  )
 
 env = Environment(variables=opts,
                   CCFLAGS=['-g', '-O2', '-Wall', ],
-                  CPPPATH=['include', LIBEV_DIR, ])
+                  CPPPATH=['include', ])
+
+BUILDING = not (env.GetOption('clean') or env.GetOption('help'))
 
 Help(opts.GenerateHelpText(env))
+opts.Save(SAVED_CONFIG, env)
 
 # Bring in libev.
-### sigh. libtool.
-env.Append(LIBPATH=os.path.join(LIBEV_DIR, '.libs'), LIBS='ev')
+### SCons probably has a good way to look for a library, and one that
+### doesn't have to test the BUILDING flag. (we check whether we're
+### truly building so that we don't error out when libev.a is not found).
+### we may want to look in the standard system areas and adjust the
+### (saved) EV variable, or simply set it to None or something to say
+### "libev is normally installed; nothing special is needed".
+if BUILDING:
+  libev_dir = str(env['EV'])
+  if os.path.isfile(os.path.join(libev_dir, '.libs', 'libev.a')):
+    # Pointing to the libev build area. Grab libev.a from its .libs/ subdir.
+    env.Append(LIBPATH=os.path.join(libev_dir, '.libs'),
+               LIBS='ev',
+               CPPPATH=libev_dir)
+  else:
+    if os.path.isfile(os.path.join(libev_dir, 'lib', 'libev.a')):
+      env.Append(LIBPATH=os.path.join(libev_dir, 'lib'),
+                 LIBS='ev',
+                 CPPPATH=os.path.join(libev_dir, 'include'))
+    else:
+      ### does SCons have a better way to issue error messages?
+      print 'ERROR: libev.a not found'
+      Exit(1)
+
 
 SOURCES = Glob('src/*.c')
 if sys.platform.startswith('linux'):
