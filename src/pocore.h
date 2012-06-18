@@ -80,6 +80,9 @@ struct pc_cleanup_list_s {
     /* Its cleanup function.  */
     pc_cleanup_func_t cleanup;
 
+    /* Its shift function.  */
+    pc_shift_func_t shift;
+
     /* This link is used while this record is active in a pool, or for
        the list of free records in the context.  */
     struct pc_cleanup_list_s *next;

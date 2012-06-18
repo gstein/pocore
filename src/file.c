@@ -119,7 +119,8 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
 #endif
 
     /* Register a cleanup to close the file.  */
-    pc_cleanup_register(pool, *new_file, cleanup_file);
+    pc_cleanup_register(pool, *new_file, cleanup_file,
+                        (pc_shift_func_t)pc_file_shift);
 
     return PC_NO_ERROR;
 }

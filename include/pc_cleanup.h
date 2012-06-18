@@ -37,6 +37,11 @@ extern "C" {
 /* A cleanup function for a piece of data.  */
 typedef void (*pc_cleanup_func_t)(void *data);
 
+/* A function to shift a piece of data to a different pool.
+   DATA is typically a resource.  POOL is the pool that is
+   shifted towards.  */
+typedef void (*pc_shift_func_t)(void *data, pc_pool_t *pool);
+
 
 /* Register DATA in the cleanup registry of POOL. When this item needs to
    be cleaned up, CLEANUP will be invoked with DATA as its sole parameter.
@@ -47,7 +52,8 @@ typedef void (*pc_cleanup_func_t)(void *data);
    CLEANUP may not be NULL.  */
 void pc_cleanup_register(pc_pool_t *pool,
                          const void *data,
-                         pc_cleanup_func_t cleanup);
+                         pc_cleanup_func_t cleanup,
+                         pc_shift_func_t shift);
 
 
 /* Remove DATA from POOL's cleanup registry.

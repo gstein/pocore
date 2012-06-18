@@ -89,7 +89,8 @@ extract_cleanup(pc_cleanup_func_t *cleanup,
                
 void pc_cleanup_register(pc_pool_t *pool,
                          const void *data,
-                         pc_cleanup_func_t cleanup)
+                         pc_cleanup_func_t cleanup,
+                         pc_shift_func_t shift)
 {
     struct pc_cleanup_list_s *cl;
     pc_context_t *ctx = pool->memroot->ctx;
@@ -119,6 +120,7 @@ void pc_cleanup_register(pc_pool_t *pool,
     cl = get_cl(ctx);
     cl->data = data;
     cl->cleanup = cleanup;
+    cl->shift = shift;
 
     /* Hook the new record into the pool.  */
     cl->next = pool->cleanups;
