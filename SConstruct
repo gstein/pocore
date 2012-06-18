@@ -52,6 +52,8 @@ if BUILDING:
       Exit(1)
 
 
+thisdir = os.getcwd()
+
 SOURCES = Glob('src/*.c')
 if sys.platform.startswith('linux'):
   SOURCES.append('src/platform/linux.c')
@@ -76,7 +78,7 @@ if not (env.GetOption('clean') or env.GetOption('help')):
 
 tenv = env.Clone()
 tenv.Prepend(LIBS=['libpc-0', ],
-             LIBPATH=['.', ]
+             LIBPATH=[thisdir, ]
              )
 
 TEST_PROGRAMS = [
