@@ -170,7 +170,7 @@ pc_error_t *pc_channel_create_udp(pc_channel_t **channel,
                                   const pc_address_t *source);
 
 
-/* ### is there anything more to creating a pipe?  */
+/* ### is there anything more to creating a pipe? buffer sizes?  */
 pc_error_t *pc_channel_create_pipe(pc_channel_t **endpoint1,
                                    pc_channel_t **endpoint2,
                                    pc_context_t *ctx);
@@ -272,7 +272,20 @@ pc_error_t *pc_channel_write_to(pc_channel_t *channel,
 
 /* ### docco on how long this runs. exit conditions. etc.
    ### time type.  */
-pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout);
+pc_error_t *pc_eventsys_run(pc_context_t *ctx, uint64_t timeout);
+
+
+/* Set the buffer size for the event system's buffers when reading and
+   writing to the OS.
+
+   Note: this buffer size affects all channels in the event system.
+   Different contexts (and their related event system) should be used
+   if different buffer sizes are required.
+
+   ### does this affect datagrams at all?
+   ### how does this interact with pipes' buffer sizes?
+   ### are errors possible?  */
+void pc_eventsys_set_bufsize(pc_context_t *ctx, size_t bufsize);
 
 
 /* Callback should consume @a len bytes of data from the buffer at @a buf.
@@ -402,6 +415,20 @@ typedef pc_error_t *(*pc_channel_error_t)(void *error,
    ### possibly just harder to use) is a vtable of callbacks and flags
    ### denoting which conditions are desired.  */
 
+typedef struct pc_channel_callbacks_s {
+    /* ### keep the typedefs? or just inline the prototypes here?  */
+    pc_channel_readable_t read_cb;
+    pc_channel_writeable_t write_cb;
+    pc_channel_error_t error_cb;
+
+} pc_channel_callbacks_t;
+
+
+/* ### docco  */
+void pc_channel_register_callbacks(pc_channel_t *channel,
+                                   const pc_channel_callbacks_t *callbacks,
+                                   void *cb_baton);
+
 
 /* When the item has data, the callback will be invoked.
 
@@ -413,9 +440,8 @@ typedef pc_error_t *(*pc_channel_error_t)(void *error,
    ### as long as data is available.
 
    ### more docco.  */
-void pc_channel_desire_read(pc_channel_t *channel,
-                            pc_channel_readable_t callback,
-                            void *baton);
+void pc_channel_desire_read(pc_channel_t *channel);
+
 
 /* When the item can be writen, the callback will be invoked.
 
@@ -423,27 +449,7 @@ void pc_channel_desire_read(pc_channel_t *channel,
    ### signaling a desire for writing data.
 
    ### more docco.  */
-void pc_channel_desire_write(pc_channel_t *channel,
-                             pc_channel_writeable_t callback,
-                             void *baton);
-
-
-/* Adjust the channel's buffer sizes that it uses for read/write with the OS.
-
-   ### docco for interaction with dgrams
-   ### pipes have buffer sizes
-   ### this bufsize w.r.t reading from a socket
-   ### how much of this bufsize is app-level (eventsys) vs OS?
-
-   ### need pools?
-   ### better name?
-*/
-pc_error_t *pc_channel_set_readbuf(pc_channel_t *channel,
-                                   size_t bufsize,
-                                   pc_pool_t *pool);
-pc_error_t *pc_channel_set_writebuf(pc_channel_t *channel,
-                                    size_t bufsize,
-                                    pc_pool_t *pool);
+void pc_channel_desire_write(pc_channel_t *channel);
 
 
 /* ### in the serf scenario, the socket bucket accepts the read callback and
@@ -451,6 +457,10 @@ pc_error_t *pc_channel_set_writebuf(pc_channel_t *channel,
    ### memory. note that the serf read cycle is synchronous from the read
    ### callback (serf tells the response handler to do a read). after the
    ### cycle completes, it can return the amount consumed back into pocore.
+
+   ### oop. actually: serf demands the bucket is fully-read, so we should
+   ### never consume a subset. serf's pocore read callback can thus raise
+   ### an error in this situation.
 
    ### for a write callback, serf reads from a request bucket, and then
    ### returns that as data to write.

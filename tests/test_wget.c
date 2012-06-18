@@ -179,6 +179,13 @@ write_channel(struct iovec **iov,
 }
 
 
+static const pc_channel_callbacks_t callbacks = {
+    read_channel,
+    write_channel,
+    NULL
+};
+
+
 static void
 dump_error(const pc_error_t *error)
 {
@@ -261,12 +268,14 @@ int main(int argc, const char **argv)
     cb.port = port;
     cb.path = path;
 
-    pc_channel_desire_read(channel, read_channel, &cb);
-    pc_channel_desire_write(channel, write_channel, &cb);
+    pc_channel_register_callbacks(channel, &callbacks, &cb);
+
+    pc_channel_desire_read(channel);
+    pc_channel_desire_write(channel);
 
     do
     {
-        err = pc_error_trace(pc_channel_run_events(ctx, 10));
+        err = pc_error_trace(pc_eventsys_run(ctx, 10));
         if (err)
             goto error;
 

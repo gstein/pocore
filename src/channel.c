@@ -78,7 +78,7 @@ struct pc_channel_s {
     ev_io watcher;
 
     /* These fields contain data that the application provided to us for
-       writing to the socket. It will be valid until we invoked write_cb
+       writing to the socket. It will be valid until we invoke write_cb
        again.
 
        Each time the socket becomes writeable, we will examine these fields
@@ -93,14 +93,11 @@ struct pc_channel_s {
        to the first byte of unwritten data in that iovec.  */
     char *pending_buf;
 
-    pc_channel_readable_t read_cb;
-    void *read_baton;
+    const pc_channel_callbacks_t *callbacks;
+    void *cb_baton;
 
-    pc_channel_writeable_t write_cb;
-    void *write_baton;
-
-    pc_channel_error_t error_cb;
-    void *error_baton;
+    pc_bool_t desire_read;
+    pc_bool_t desire_write;
 
     /* ### the above structure is too big. need to reduce to better
        ### manage the C10k problem.  */
@@ -253,17 +250,18 @@ perform_read(pc_channel_t *channel)
 
                    ### signal the app somehow.
                    ### for now, turn off reading.  */
-                channel->read_cb = NULL;
+                channel->desire_read = FALSE;
                 return TRUE;
             }
 
             if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
                 /* Tell the callback that we are done for the moment.  */
-                err = channel->read_cb(&consumed,
-                                       NULL /* buf */, 0 /* len */,
-                                       channel, channel->read_baton,
-                                       channel->ctx->cctx->callback_scratch);
+                err = channel->callbacks->read_cb(
+                        &consumed,
+                        NULL /* buf */, 0 /* len */,
+                        channel, channel->cb_baton,
+                        channel->ctx->cctx->callback_scratch);
                 pc_pool_clear(channel->ctx->cctx->callback_scratch);
 
                 /* ### what to do with an error... */
@@ -272,7 +270,7 @@ perform_read(pc_channel_t *channel)
                 if (consumed == PC_CONSUMED_STOP)
                 {
                     /* Stop reading from the socket.  */
-                    channel->read_cb = NULL;
+                    channel->desire_read = FALSE;
                     return TRUE;
                 }
                 /* ### assert consumed == PC_CONSUMED_CONTINUE  */
@@ -291,13 +289,14 @@ perform_read(pc_channel_t *channel)
             }
 
             /* Stop reading from this socket.  */
-            channel->read_cb = NULL;
+            channel->desire_read = FALSE;
             return TRUE;
         }
 
-        err = channel->read_cb(&consumed, rb->buf, amt, channel,
-                               channel->read_baton,
-                               channel->ctx->cctx->callback_scratch);
+        err = channel->callbacks->read_cb(
+                &consumed, rb->buf, amt, channel,
+                channel->cb_baton,
+                channel->ctx->cctx->callback_scratch);
         pc_pool_clear(channel->ctx->cctx->callback_scratch);
 
         /* ### what to do with an error... */
@@ -315,7 +314,7 @@ perform_read(pc_channel_t *channel)
             channel->ctx->cctx->pending = rb;
 
             /* Stop reading.  */
-            channel->read_cb = NULL;
+            channel->desire_read = FALSE;
             return TRUE;
         }
 
@@ -447,11 +446,12 @@ perform_write(pc_channel_t *channel)
             pc_error_t *err;
 
             /* Ask the application for some data to write.  */
-            err = channel->write_cb(&channel->pending_iov,
-                                    &channel->pending_iovcnt,
-                                    channel,
-                                    channel->write_baton,
-                                    channel->ctx->cctx->callback_scratch);
+            err = channel->callbacks->write_cb(
+                    &channel->pending_iov,
+                    &channel->pending_iovcnt,
+                    channel,
+                    channel->cb_baton,
+                    channel->ctx->cctx->callback_scratch);
             pc_pool_clear(channel->ctx->cctx->callback_scratch);
 
             /* ### what to do with an error... */
@@ -462,7 +462,7 @@ perform_write(pc_channel_t *channel)
             if (channel->pending_iov == NULL)
             {
                 /* Stop writing.  */
-                channel->write_cb = NULL;
+                channel->desire_write = FALSE;
                 return TRUE;
             }
 
@@ -506,7 +506,7 @@ perform_write(pc_channel_t *channel)
             }
 
             /* Stop writing to this socket.  */
-            channel->write_cb = NULL;
+            channel->desire_write = FALSE;
             return TRUE;
         }
 
@@ -532,17 +532,17 @@ channel_is_usable(struct ev_loop *loop, ev_io *watcher, int revents)
 
     if ((revents & EV_READ) != 0)
     {
-        if (channel->read_cb == NULL)
-            dirty = TRUE;
-        else
+        if (channel->desire_read)
             dirty = perform_read(channel);
+        else
+            dirty = TRUE;
     }
     if ((revents & EV_WRITE) != 0)
     {
-        if (channel->write_cb == NULL)
-            dirty = TRUE;
-        else
+        if (channel->desire_write)
             dirty |= perform_write(channel);
+        else
+            dirty = TRUE;
     }
 
     /* Do we need to adjust what events we're looking for?  */
@@ -550,9 +550,9 @@ channel_is_usable(struct ev_loop *loop, ev_io *watcher, int revents)
     {
         int events = 0;
 
-        if (channel->read_cb)
+        if (channel->desire_read)
             events |= EV_READ;
-        if (channel->write_cb)
+        if (channel->desire_write)
             events |= EV_WRITE;
 
         start_watcher(loop, watcher, events);
@@ -560,7 +560,7 @@ channel_is_usable(struct ev_loop *loop, ev_io *watcher, int revents)
 }
 
 
-pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout)
+pc_error_t *pc_eventsys_run(pc_context_t *ctx, uint64_t timeout)
 {
     CHECK_CCTX(ctx);
 
@@ -569,7 +569,7 @@ pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout)
 
     ctx->cctx->running = TRUE;
 
-    /* ### process all pending reads where the channel as (re)indicated
+    /* ### process all pending reads where the channel has (re)indicated
        ### a desire to read more data.  */
 
     /* Set up the timeout.  */
@@ -582,6 +582,12 @@ pc_error_t *pc_channel_run_events(pc_context_t *ctx, uint64_t timeout)
     ctx->cctx->running = FALSE;
 
     return PC_NO_ERROR;
+}
+
+
+void pc_eventsys_set_bufsize(pc_context_t *ctx, size_t bufsize)
+{
+    NOT_IMPLEMENTED();
 }
 
 
@@ -817,51 +823,78 @@ void pc_channel_destroy(pc_channel_t *channel)
 }
 
 
-void pc_channel_desire_read(pc_channel_t *channel,
-                            pc_channel_readable_t callback,
-                            void *baton)
+void pc_channel_register_callbacks(pc_channel_t *channel,
+                                   const pc_channel_callbacks_t *callbacks,
+                                   void *cb_baton)
+{
+    channel->callbacks = callbacks;
+    channel->cb_baton = cb_baton;
+}
+
+
+void pc_channel_desire_read(pc_channel_t *channel)
 {
     int events;
 
-    channel->read_cb = callback;
-    channel->read_baton = baton;
+    channel->desire_read = TRUE;
 
     events = EV_READ;
-    if (channel->write_cb)
+    if (channel->desire_write)
         events |= EV_WRITE;
 
     start_watcher(channel->ctx->cctx->loop, &channel->watcher, events);
 }
 
 
-void pc_channel_desire_write(pc_channel_t *channel,
-                             pc_channel_writeable_t callback,
-                             void *baton)
+void pc_channel_desire_write(pc_channel_t *channel)
 {
     int events;
 
-    channel->write_cb = callback;
-    channel->write_baton = baton;
+    channel->desire_write = TRUE;
 
     events = EV_WRITE;
-    if (channel->read_cb)
+    if (channel->desire_read)
         events |= EV_READ;
 
     start_watcher(channel->ctx->cctx->loop, &channel->watcher, events);
 }
 
 
-pc_error_t *pc_channel_set_readbuf(pc_channel_t *channel,
-                                   size_t bufsize,
-                                   pc_pool_t *pool)
+pc_error_t *pc_channel_read(size_t *read,
+                            pc_channel_t *channel,
+                            void *buf,
+                            size_t len,
+                            pc_pool_t *pool)
 {
     NOT_IMPLEMENTED();
 }
 
 
-pc_error_t *pc_channel_set_writebuf(pc_channel_t *channel,
-                                    size_t bufsize,
-                                    pc_pool_t *pool)
+pc_error_t *pc_channel_write(size_t *written,
+                             pc_channel_t *channel,
+                             const void *buf,
+                             size_t len,
+                             pc_pool_t *pool)
+{
+    NOT_IMPLEMENTED();
+}
+
+
+pc_error_t *pc_channel_read_from(void **buf,
+                                 size_t *len,
+                                 const pc_address_t **address,
+                                 pc_channel_t *channel,
+                                 pc_pool_t *pool)
+{
+    NOT_IMPLEMENTED();
+}
+
+
+pc_error_t *pc_channel_write_to(pc_channel_t *channel,
+                                const pc_address_t *address,
+                                const void *buf,
+                                size_t len,
+                                pc_pool_t *pool)
 {
     NOT_IMPLEMENTED();
 }
