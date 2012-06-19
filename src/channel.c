@@ -65,8 +65,8 @@ struct pc__channel_ctx_s {
     pc_pool_t *callback_scratch;
 
     /* We sometimes need to assemble some iovecs for writing pending
-       data. That will use these slots, or switch to a pool there are
-       too many iovecs.  */
+       data. That will use these slots, or switch to a pool when there
+       are too many iovecs.  */
 #define INTERNAL_IOVEC_COUNT 128
     struct iovec scratch_iov[INTERNAL_IOVEC_COUNT];
 };
@@ -139,7 +139,9 @@ struct read_buffer_s {
 
 /* We read from the network into a buffer of this size. We want to leave
    a little bit of room (ie. not page-aligned) to ensure that any overheads
-   will not spill us into an extra page.  */
+   will not spill us into an extra page.
+
+   ### this should be adjustable by pc_eventsys_set_bufsize()  */
 #define READ_BUFFER_SIZE 16000
 
 
@@ -156,6 +158,7 @@ loop_timeout(struct ev_loop *loop, ev_timer *timeout, int revents)
 static void
 init_cctx(pc_context_t *ctx)
 {
+    /* ### custom config flags for this root pool?  */
     pc_pool_t *pool = pc_pool_root(ctx);
     struct pc__channel_ctx_s *cctx;
 
