@@ -522,9 +522,16 @@ void pc_pool_reparent(pc_pool_t *pool, pc_pool_t *parent)
     if (from_memroot == to_memroot)
         return;
 
-    /* ### TODO: verify TO_CTX and FROM_CTX are compatible from a memory
-       ### allocation strategy standpoint.
-    */
+#ifdef PC_DEBUG
+#ifdef PC__IS_WINDOWS
+    if (to_ctx->heap != from_ctx->heap)
+    {
+        /* TO_CTX and FROM_CTX are incompatible from a memory allocation
+           strategy standpoint.  */
+        PC_UNHANDLED(from_ctx, PC_ERR_BAD_PARAM);
+    }
+#endif
+#endif
 
     /* If FROM_CTX had cleanups, ensure that TO_CTX has a cleanup pool */
     if (to_ctx->cleanup_pool == NULL && from_ctx->cleanup_pool != NULL)
