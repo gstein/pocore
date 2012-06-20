@@ -506,8 +506,8 @@ void pc_pool_reparent(pc_pool_t *pool, pc_pool_t *parent)
         {
             if (scan == pool)
             {
-                /* ### TODO: create unhandled error.  Reparenting to a
-                   ### descendant is not allowed.  */
+                /* Reparenting to a descendant is not allowed.  */
+                PC_UNHANDLED(from_ctx, PC_ERR_BAD_PARAM);
             }
         }
     }

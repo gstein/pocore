@@ -56,8 +56,9 @@ void pc_pool_clear(pc_pool_t *pool);
 
 /*  Shift the responsibility for the with POOL associated resources and
     memory from its current lifetime and context ownership into
-    a new lifetime/context.  */
-void pc_pool_reparent(pc_pool_t *pool, pc_pool_t *new_parent);
+    a new lifetime/context.  POOL will become a child of PARENT.  
+    POOL cannot be a root pool.  */
+void pc_pool_reparent(pc_pool_t *pool, pc_pool_t *parent);
 
 
 /* Redistribute free memory from FROM's memroot/context to POOL's
