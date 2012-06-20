@@ -356,20 +356,19 @@ static void pool_unparent(pc_pool_t *pool)
     {
         /* We're at the head of the list. Point it to the next pool.  */
         pool->parent->child = pool->sibling;
+        return;
     }
-    else
-    {
-        /* Find the child pool which refers to us, and then reset its
-           sibling link to skip self.
 
-           NOTE: we should find POOL in this list, so we don't need to
-           check for end-of-list.  */
-        while (scan->sibling != pool)
-            scan = scan->sibling;
+    /* Find the child pool which refers to us, and then reset its
+       sibling link to skip self.
 
-        /* ### assert scan != NULL  */
-        scan->sibling = pool->sibling;
-    }
+       NOTE: we should find POOL in this list, so we don't need to
+       check for end-of-list.  */
+    while (scan->sibling != pool)
+        scan = scan->sibling;
+
+    /* ### assert scan != NULL  */
+    scan->sibling = pool->sibling;
 }
 
 
@@ -477,40 +476,11 @@ fixup_reparented(pc_pool_t *pool,
         }
     }
 
-    if (to_ctx != from_ctx && pool->cleanups)
-    {
-        /* The pool is being shifted to a different context, which implies
-           that all the cleanups need to be allocated from the target
-           context.  And that registered shift handlers need to be called.  */
-        struct pc_cleanup_list_s *cl;
-        struct pc_cleanup_list_s *to_cl;
-
-        cl = pool->cleanups;
-        /* ### TODO: use and exhaust to_ctx->free_cl instead of allocating */
-        pool->cleanups = to_cl = pc_alloc(to_ctx->cleanup_pool, sizeof(*to_cl));
-        for (;;)
-        {
-            to_cl->data = cl->data;
-            to_cl->cleanup = cl->cleanup;
-            to_cl->shift = cl->shift;
-
-            cl = cl->next;
-            if (cl == NULL)
-                break;
-
-            to_cl->next = pc_alloc(to_ctx->cleanup_pool, sizeof(*to_cl));
-            to_cl = to_cl->next;
-        }
-        to_cl->next = NULL;
-
-        for (cl = pool->cleanups;
-             cl != NULL;
-             cl = cl->next)
-        {
-            if (cl->shift)
-                cl->shift((/* const */ void *)cl->data, from_ctx);
-        }
-    }
+    /* The pool is being shifted to a different context, which implies
+       that all the cleanups need to be allocated from the target
+       context.  And that registered shift handlers need to be called.  */
+    if (to_ctx != from_ctx)
+        pc__cleanup_shift(pool, from_ctx);
 }
 
 void pc_pool_reparent(pc_pool_t *pool, pc_pool_t *parent)

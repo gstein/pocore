@@ -257,3 +257,53 @@ void pc_cleanup_run(pc_pool_t *pool, const void *data)
     if (cleanup != NULL)
         cleanup((/* const */ void *) data);
 }
+
+
+void pc__cleanup_shift(pc_pool_t *pool, pc_context_t *from_ctx)
+{
+    pc_context_t *to_ctx = pool->memroot->ctx;
+    struct pc_cleanup_list_s *cl_head = pool->cleanups;
+    struct pc_cleanup_list_s *cl;
+    struct pc_cleanup_list_s *to_cl;
+    
+    /* ### TODO: use and exhaust to_ctx->free_cl instead of allocating
+       ### via get_cl().  */
+
+    /* No cleanups, we're done. */
+    if (cl_head == NULL)
+        return;
+
+    /* Visit each cleanup and create a copy in the new context.  */
+    pool->cleanups = to_cl = get_cl(to_ctx);
+    cl = cl_head;
+    while (TRUE)
+    {
+        to_cl->data = cl->data;
+        to_cl->cleanup = cl->cleanup;
+        to_cl->shift = cl->shift;
+
+        if (cl->next == NULL)
+            break;
+        cl = cl->next;
+
+        to_cl->next = get_cl(to_ctx);
+        to_cl = to_cl->next;
+    }
+ 
+    /* Terminate the new cleanups list.  */
+    to_cl->next = NULL;
+
+    /* Insert the entire list of cleanup records into FROM_CTX's
+       free list.  */
+    cl->next = from_ctx->free_cl;
+    from_ctx->free_cl = cl_head;
+
+    /* Run all the shift handlers, in order. */
+    for (cl = pool->cleanups;
+         cl != NULL;
+         cl = cl->next)
+    {
+        if (cl->shift != NULL)
+            cl->shift((/* const */ void *)cl->data, from_ctx);
+    }
+}

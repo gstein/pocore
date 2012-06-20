@@ -388,6 +388,9 @@ pc__memtree_extract(struct pc_memtree_s **root, void *mem, size_t size);
 void pc__context_init_mutex(pc_context_t *ctx);
 
 
+/* Shift cleanups to a new context. */
+void pc__cleanup_shift(pc_pool_t *pool, pc_context_t *old_ctx);
+
 /* Clean up the channel context.  */
 void pc__channel_cleanup(pc_context_t *ctx);
 
