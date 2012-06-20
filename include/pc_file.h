@@ -105,15 +105,6 @@ pc_error_t *pc_file_set_position(pc_file_t *file,
 /* ### locking?  */
 
 
-/* Shift the responsibility for the underlying file from its current
-   lifetime and context ownership into a new lifetime/context.
-
-   ### the file must have no dependents
-   ### errors possible?  */
-void pc_file_shift(pc_file_t *file,
-                   pc_pool_t *new_pool);
-
-
 /*
   ====================================================================
 

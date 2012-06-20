@@ -348,6 +348,30 @@ void pc_pool_clear(pc_pool_t *pool)
     pool->remnants = NULL;
 }
 
+static void pool_unparent(pc_pool_t *pool)
+{
+    pc_pool_t *scan = pool->parent->child;
+
+    if (scan == pool)
+    {
+        /* We're at the head of the list. Point it to the next pool.  */
+        pool->parent->child = pool->sibling;
+    }
+    else
+    {
+        /* Find the child pool which refers to us, and then reset its
+           sibling link to skip self.
+
+           NOTE: we should find POOL in this list, so we don't need to
+           check for end-of-list.  */
+        while (scan->sibling != pool)
+            scan = scan->sibling;
+
+        /* ### assert scan != NULL  */
+        scan->sibling = pool->sibling;
+    }
+}
+
 
 void pc_pool_destroy(pc_pool_t *pool)
 {
@@ -371,27 +395,9 @@ void pc_pool_destroy(pc_pool_t *pool)
     /* Remove this pool from the parent's list of child pools.  */
     if (pool->parent != NULL)
     {
-        pc_pool_t *scan = pool->parent->child;
         struct pc_block_s *block;
 
-        if (scan == pool)
-        {
-            /* We're at the head of the list. Point it to the next pool.  */
-            pool->parent->child = pool->sibling;
-        }
-        else
-        {
-            /* Find the child pool which refers to us, and then reset its
-               sibling link to skip self.
-
-               NOTE: we should find POOL in this list, so we don't need to
-               check for end-of-list.  */
-            while (scan->sibling != pool)
-                scan = scan->sibling;
-
-            /* ### assert scan != NULL  */
-            scan->sibling = pool->sibling;
-        }
+	pool_unparent(pool);
 
         /* This pool was allocated within a tree of pools. Thus, it used
            a standard-sized block for its allocation. Return that block
@@ -444,6 +450,130 @@ void pc_pool_destroy(pc_pool_t *pool)
            ### (unbounded) a new block for each pool.  */
         PC__FREE(ctx, memroot);
     }
+}
+
+/* Fixup POOL and it's descendants once it has been reparented.  Associate
+   the new memroot for future allocations and potentially deal with a
+   shift to a new context.  */
+static void
+fixup_reparented(pc_pool_t *pool, 
+                 struct pc_memroot_s *to_memroot)
+{
+    pc_context_t *to_ctx = to_memroot->ctx;
+    pc_context_t *from_ctx = pool->memroot->ctx;
+
+    /* Use the new memroot for all future allocations and freeing */
+    pool->memroot = to_memroot;
+
+    /* Take care of descendants */
+    {
+        pc_pool_t *child;
+
+        for (child = pool->child;
+             child != NULL; 
+             child = child->sibling)
+        {
+            fixup_reparented(child, to_memroot);
+        }
+    }
+
+    if (to_ctx != from_ctx && pool->cleanups)
+    {
+        /* The pool is being shifted to a different context, which implies
+           that all the cleanups need to be allocated from the target
+           context.  And that registered shift handlers need to be called.  */
+        struct pc_cleanup_list_s *cl;
+        struct pc_cleanup_list_s *to_cl;
+
+        cl = pool->cleanups;
+        /* ### TODO: use and exhaust to_ctx->free_cl instead of allocating */
+        pool->cleanups = to_cl = pc_alloc(to_ctx->cleanup_pool, sizeof(*to_cl));
+        for (;;)
+        {
+            to_cl->data = cl->data;
+            to_cl->cleanup = cl->cleanup;
+            to_cl->shift = cl->shift;
+
+            cl = cl->next;
+            if (cl == NULL)
+                break;
+
+            to_cl->next = pc_alloc(to_ctx->cleanup_pool, sizeof(*to_cl));
+            to_cl = to_cl->next;
+        }
+        to_cl->next = NULL;
+
+        for (cl = pool->cleanups;
+             cl != NULL;
+             cl = cl->next)
+        {
+            if (cl->shift)
+                cl->shift((/* const */ void *)cl->data, from_ctx);
+        }
+    }
+}
+
+void pc_pool_reparent(pc_pool_t *pool, pc_pool_t *parent)
+{
+    struct pc_memroot_s *from_memroot = pool->memroot;
+    pc_context_t *from_ctx = from_memroot->ctx;
+
+    struct pc_memroot_s *to_memroot = parent->memroot;
+    pc_context_t *to_ctx = to_memroot->ctx;
+
+    POOL_USABLE(pool);
+    POOL_USABLE(parent);
+
+    /* ### TODO: protect against attempts to reparent a root pool */
+    pool_unparent(pool);
+
+#ifdef PC_DEBUG
+    {
+        pc_pool_t *scan;
+        for (scan = parent;
+             scan != NULL;
+             scan = scan->parent)
+        {
+            if (scan == pool)
+            {
+                /* ### TODO: create unhandled error.  Reparenting to a
+                   ### descendant is not allowed.  */
+            }
+        }
+    }
+#endif
+
+    /* Hook this pool into the new parent.  */
+    pool->parent = parent;
+    pool->sibling = parent->child;
+    parent->child = pool;
+
+    /* If memroots are identical we are done. */
+    if (from_memroot == to_memroot)
+        return;
+
+    /* ### TODO: verify TO_CTX and FROM_CTX are compatible from a memory
+       ### allocation strategy standpoint.
+    */
+
+    /* If FROM_CTX had cleanups, ensure that TO_CTX has a cleanup pool */
+    if (to_ctx->cleanup_pool == NULL && from_ctx->cleanup_pool != NULL)
+        to_ctx->cleanup_pool = pc_pool_root(to_ctx);
+
+    /* Walk pool and it's descendants to set the new hierarchy */
+    fixup_reparented(pool, to_memroot);
+}
+
+void pc_pool_rebalance(pc_pool_t *pool, pc_pool_t *from, int flags)
+{
+    /* Transfer free memory from the FROM pool and it's context to the
+       target POOL.
+       FLAGS indicates
+       - transfer of only standard blocks
+       - transfer of only non-standard blocks
+       - transfer of only a single non-standard blocksize
+       - transfer of everything
+     */
 }
 
 

@@ -57,6 +57,7 @@ static const char file_is_closed;
 
 /* ### rearrange functions in this file.  */
 static void cleanup_file(void *data);
+static void shift_file(void *data, pc_context_t *old_ctx);
 
 
 pc_error_t *pc_file_create(pc_file_t **new_file,
@@ -119,8 +120,7 @@ pc_error_t *pc_file_create(pc_file_t **new_file,
 #endif
 
     /* Register a cleanup to close the file.  */
-    pc_cleanup_register(pool, *new_file, cleanup_file,
-                        (pc_shift_func_t)pc_file_shift);
+    pc_cleanup_register(pool, *new_file, cleanup_file, shift_file);
 
     return PC_NO_ERROR;
 }
@@ -165,6 +165,13 @@ void pc_file_destroy(pc_file_t *file)
 static void cleanup_file(void *data)
 {
     close_file(data);
+}
+
+
+void shift_file(void *data, /* pc_file_t */ 
+                pc_context_t *old_ctx)
+{
+    NOT_IMPLEMENTED();
 }
 
 
@@ -241,13 +248,6 @@ pc_error_t *pc_file_get_position(int64_t *position,
 pc_error_t *pc_file_set_position(pc_file_t *file,
                                  int64_t position,
                                  pc_pool_t *pool)
-{
-    NOT_IMPLEMENTED();
-}
-
-
-void pc_file_shift(pc_file_t *file,
-                   pc_pool_t *new_pool)
 {
     NOT_IMPLEMENTED();
 }

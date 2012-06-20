@@ -37,10 +37,10 @@ extern "C" {
 /* A cleanup function for a piece of data.  */
 typedef void (*pc_cleanup_func_t)(void *data);
 
-/* A function to shift a piece of data to a different pool.
-   DATA is typically a resource.  POOL is the pool that is
-   shifted towards.  */
-typedef void (*pc_shift_func_t)(void *data, pc_pool_t *pool);
+/* A function to shift a piece of data to a different context.
+   DATA is typically a resource.  OLD_CTX is the context that the
+   pool this cleanup was registered against was in previously.  */
+typedef void (*pc_shift_func_t)(void *data, pc_context_t *old_ctx);
 
 
 /* Register DATA in the cleanup registry of POOL. When this item needs to

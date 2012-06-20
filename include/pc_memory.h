@@ -54,6 +54,15 @@ void pc_pool_freemem(pc_pool_t *pool, void *mem, size_t len);
 
 void pc_pool_clear(pc_pool_t *pool);
 
+/*  Shift the responsibility for the with POOL associated resources and
+    memory from its current lifetime and context ownership into
+    a new lifetime/context.  */
+void pc_pool_reparent(pc_pool_t *pool, pc_pool_t *new_parent);
+
+
+/* Redistribute free memory from FROM's memroot/context to POOL's
+   memroot/context.  */ 
+void pc_pool_rebalance(pc_pool_t *pool, pc_pool_t *from, int flags);
 
 
 void *pc_alloc(pc_pool_t *pool, size_t amt);
