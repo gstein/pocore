@@ -48,6 +48,10 @@ typedef void (*pc_shift_func_t)(void *data, pc_context_t *old_ctx);
 
    It is okay to register an item multiple times. Only the last CLEANUP will
    be saved, and run at cleanup time.
+   ### Should this remain true, or should we protect against internally
+   ### registered cleanups being overwritten by an application?  That is,
+   ### ignore anything beyond the first registration and create an unhandled
+   ### error?
 
    CLEANUP may not be NULL.  */
 void pc_cleanup_register(pc_pool_t *pool,
