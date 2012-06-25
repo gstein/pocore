@@ -47,6 +47,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="pocore_platform.h" />
+    <ClInclude Include="..\include\pc_condvar.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="array.c" />
@@ -62,5 +65,6 @@
     <ClCompile Include="mutex.c" />
     <ClCompile Include="path.c" />
     <ClCompile Include="platform\windows.c" />
+    <ClCompile Include="condvar.c" />
   </ItemGroup>
 </Project>

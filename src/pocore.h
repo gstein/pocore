@@ -365,6 +365,23 @@ struct pc_errmap_s {
 };
 
 
+struct pc_mutex_s {
+#ifdef PC__IS_WINDOWS
+    /* On Windows, critical sections are used instead of a
+     * mutex */
+    CRITICAL_SECTION cs;
+#endif
+};
+
+
+struct pc_condvar_s {
+#ifdef PC__IS_WINDOWS
+    /* On Windows, condition variables are native post Windows-XP (eg. Vista+)
+     * and post Windows Server 2003 (eg. Windows Server 2008+) */
+    CONDITION_VARIABLE cv;
+#endif
+};
+
 /* Insert the block at MEM, of SIZE, into the tree at ROOT.  */
 void
 pc__memtree_insert(struct pc_memtree_s **root,

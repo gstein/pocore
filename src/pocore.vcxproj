@@ -81,6 +81,7 @@
   <ItemGroup>
     <ClInclude Include="..\include\pc_channel.h" />
     <ClInclude Include="..\include\pc_cleanup.h" />
+    <ClInclude Include="..\include\pc_condvar.h" />
     <ClInclude Include="..\include\pc_dynload.h" />
     <ClInclude Include="..\include\pc_error.h" />
     <ClInclude Include="..\include\pc_file.h" />
@@ -100,6 +101,7 @@
     <ClCompile Include="atomic.c" />
     <ClCompile Include="channel.c" />
     <ClCompile Include="cleanup.c" />
+    <ClCompile Include="condvar.c" />
     <ClCompile Include="error.c" />
     <ClCompile Include="file.c" />
     <ClCompile Include="hash.c" />

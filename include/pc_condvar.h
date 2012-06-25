@@ -1,5 +1,5 @@
 /*
-  mutex.c :  mutex primitives
+  pc_condvar.h :  condition variables
 
   ====================================================================
     Copyright 2010 Greg Stein
@@ -18,51 +18,33 @@
   ====================================================================
 */
 
-#include "pc_mutex.h"
+#ifndef PC_CONDVAR_H
+#define PC_CONDVAR_H
 
-#include "pocore.h"
+#include <stdint.h>
 
-#ifdef PC__IS_WINDOWS
+#include "pc_types.h"
 
-void pc_mutex_create(pc_mutex_t *mutex)
-{
-    InitializeCriticalSection(&mutex->cs);
-}
 
-void pc_mutex_cleanup(pc_mutex_t *mutex)
-{
-    DeleteCriticalSection(&mutex->cs);
-}
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
-void pc_mutex_lock(pc_mutex_t *mutex)
-{
-    EnterCriticalSection(&mutex->cs);
-}
+typedef struct pc_condvar_s pc_condvar_t;
+typedef struct pc_mutex_s pc_mutex_t;
 
-void pc_mutex_unlock(pc_mutex_t *mutex)
-{
-    LeaveCriticalSection(&mutex->cs);
-}
+void pc_condvar_create(pc_condvar_t *cv);
 
-#else
+void pc_condvar_cleanup(pc_condvar_t *cv);
 
-void pc_mutex_create(pc_mutex_t *mutex)
-{
-    /* ### todo */
-}
+void pc_condvar_sleep(pc_condvar_t *cv, pc_mutex_t *mx);
 
-void pc_mutex_cleanup(pc_mutex_t *mutex)
-{
-    /* ### todo */
-}
+void pc_condvar_signal(pc_condvar_t *cv);
 
-void pc_mutex_lock(pc_mutex_t *mutex)
-{
-    /* ### todo */
-}
+void pc_condvar_broadcast(pc_condvar_t *cv);
 
-void pc_mutex_unlock(pc_mutex_t *mutex)
-{
-    /* ### todo */
-}
+#ifdef __cplusplus
+} /* extern "C" */
 #endif
+
+#endif /* PC_CONDVAR_H */

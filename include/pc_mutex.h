@@ -32,7 +32,6 @@ extern "C" {
 
 typedef struct pc_mutex_s pc_mutex_t;
 
-
 /* For information on PoCore's atomic primitives, see:
      http://code.google.com/p/pocore/wiki/AtomicPrimitives
 */
@@ -81,6 +80,8 @@ pc_error_t *pc_atomic_once(volatile int32_t *control,
 
 
 /* ### return values?  */
+void pc_mutex_create(pc_mutex_t *mutex);
+void pc_mutex_cleanup(pc_mutex_t *mutex);
 void pc_mutex_lock(pc_mutex_t *mutex);
 void pc_mutex_unlock(pc_mutex_t *mutex);
 
