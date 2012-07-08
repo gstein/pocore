@@ -24,14 +24,13 @@
 #include <stdint.h>
 
 #include "pc_types.h"
-
+#include "pc_mutex.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 typedef struct pc_condvar_s pc_condvar_t;
-typedef struct pc_mutex_s pc_mutex_t;
 
 void pc_condvar_create(pc_condvar_t *cv);
 
